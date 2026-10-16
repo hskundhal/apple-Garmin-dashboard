@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { X, RefreshCw, Upload, Smartphone, Watch, CheckCircle2, AlertCircle, Database, Check, KeyRound } from 'lucide-react';
+import { X, RefreshCw, Upload, Smartphone, Watch, CheckCircle2, AlertCircle, Database, Check, KeyRound, Terminal } from 'lucide-react';
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -18,6 +18,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
   const [garminDays, setGarminDays] = useState(30);
   const [mfaCode, setMfaCode] = useState('');
   const [needsMfa, setNeedsMfa] = useState(false);
+  const [showPasscodeField, setShowPasscodeField] = useState(false);
 
   // Apple states
   const [applePath, setApplePath] = useState('~/Downloads/export.zip');
@@ -36,6 +37,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
       setStatusMessage(null);
       setNeedsMfa(false);
       setMfaCode('');
+      setShowPasscodeField(false);
       if (hasRealData && activeTab === 'demo') {
         setActiveTab('apple');
       }
@@ -53,6 +55,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
 
           if (res.needs_mfa) {
             setNeedsMfa(true);
+            setShowPasscodeField(true);
             setIsProcessing(false);
             return;
           }
@@ -83,9 +86,11 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
       return;
     }
 
-    // If waiting for MFA code, submit MFA
-    if (needsMfa) {
-      if (!mfaCode.trim()) {
+    const effectiveMfa = mfaCode.trim();
+
+    // If an MFA passcode is entered or required:
+    if (needsMfa || (showPasscodeField && effectiveMfa)) {
+      if (!effectiveMfa) {
         setError('Please enter the security passcode sent by Garmin');
         return;
       }
@@ -93,10 +98,15 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
       setIsProcessing(true);
       setStatusMessage('Verifying Garmin security passcode...');
       try {
-        await api.submitGarminMfa(mfaCode.trim());
+        await api.submitGarminMfa(effectiveMfa);
       } catch (err: any) {
-        setError(err.message || 'Passcode verification failed');
-        setIsProcessing(false);
+        // Fallback: try syncGarmin with mfa_code parameter
+        try {
+          await api.syncGarmin({ email: garminEmail, password: garminPassword, mfa_code: effectiveMfa }, garminDays);
+        } catch (err2: any) {
+          setError(err2.message || err.message || 'Passcode verification failed');
+          setIsProcessing(false);
+        }
       }
       return;
     }
@@ -157,9 +167,12 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
     setStatusMessage(null);
     setError(null);
     setNeedsMfa(false);
+    setShowPasscodeField(false);
     onSuccess();
     onClose();
   };
+
+  const isMfaActive = needsMfa || showPasscodeField;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -329,8 +342,63 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
         {/* Garmin Connect Live Tab */}
         {activeTab === 'garmin' && (
           <form onSubmit={handleGarminSync} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {/* If Garmin requires MFA Passcode */}
-            {needsMfa ? (
+            <div className="form-group">
+              <label className="form-label">Garmin Connect Email</label>
+              <input
+                type="email"
+                className="form-input"
+                value={garminEmail}
+                onChange={(e) => setGarminEmail(e.target.value)}
+                placeholder="runner@example.com"
+                disabled={isProcessing || isCompleted}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Garmin Connect Password</label>
+              <input
+                type="password"
+                className="form-input"
+                value={garminPassword}
+                onChange={(e) => setGarminPassword(e.target.value)}
+                placeholder="••••••••••••"
+                disabled={isProcessing || isCompleted}
+                required
+              />
+              <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
+                Tokens are saved locally in .garmin_tokens/ for continuous password-free syncs.
+              </span>
+            </div>
+
+            {/* Quick Toggle to show Passcode input anytime */}
+            {!isCompleted && !needsMfa && (
+              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowPasscodeField(!showPasscodeField)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#38BDF8',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    padding: 0,
+                    textDecoration: 'underline',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                  }}
+                >
+                  <KeyRound size={14} />
+                  {showPasscodeField
+                    ? 'Hide passcode field'
+                    : 'Already received a security code on your email/phone? Click here to enter it'}
+                </button>
+              </div>
+            )}
+
+            {/* Passcode / MFA Entry Box */}
+            {isMfaActive && !isCompleted && (
               <div
                 style={{
                   background: 'rgba(56, 189, 248, 0.08)',
@@ -344,19 +412,19 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38BDF8', fontWeight: 700 }}>
                   <KeyRound size={20} />
-                  <span>Enter Garmin Security Passcode</span>
+                  <span>Garmin Security Passcode (Verification Code)</span>
                 </div>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
-                  Garmin sent a temporary verification passcode to your email or SMS. Enter the code below:
+                  Enter the 6-digit one-time verification passcode sent by Garmin to your email or SMS:
                 </p>
                 <input
                   type="text"
                   className="form-input"
                   value={mfaCode}
                   onChange={(e) => setMfaCode(e.target.value)}
-                  placeholder="e.g. 849201"
+                  placeholder="e.g. 123456"
                   autoFocus
-                  disabled={isProcessing || isCompleted}
+                  disabled={isProcessing}
                   required
                   style={{
                     fontSize: '1.25rem',
@@ -367,51 +435,22 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
                   }}
                 />
               </div>
-            ) : (
-              <>
-                <div className="form-group">
-                  <label className="form-label">Garmin Connect Email</label>
-                  <input
-                    type="email"
-                    className="form-input"
-                    value={garminEmail}
-                    onChange={(e) => setGarminEmail(e.target.value)}
-                    placeholder="runner@example.com"
-                    disabled={isProcessing || isCompleted}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Garmin Connect Password</label>
-                  <input
-                    type="password"
-                    className="form-input"
-                    value={garminPassword}
-                    onChange={(e) => setGarminPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    disabled={isProcessing || isCompleted}
-                    required
-                  />
-                  <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
-                    Tokens are saved locally in .garmin_tokens/ for continuous password-free syncs.
-                  </span>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Sync Period (Days)</label>
-                  <select
-                    className="form-input"
-                    value={garminDays}
-                    onChange={(e) => setGarminDays(Number(e.target.value))}
-                    disabled={isProcessing || isCompleted}
-                  >
-                    <option value={14}>Last 14 Days</option>
-                    <option value={30}>Last 30 Days (Recommended)</option>
-                    <option value={60}>Last 60 Days</option>
-                    <option value={90}>Last 90 Days</option>
-                  </select>
-                </div>
-              </>
             )}
+
+            <div className="form-group">
+              <label className="form-label">Sync Period (Days)</label>
+              <select
+                className="form-input"
+                value={garminDays}
+                onChange={(e) => setGarminDays(Number(e.target.value))}
+                disabled={isProcessing || isCompleted}
+              >
+                <option value={14}>Last 14 Days</option>
+                <option value={30}>Last 30 Days (Recommended)</option>
+                <option value={60}>Last 60 Days</option>
+                <option value={90}>Last 90 Days</option>
+              </select>
+            </div>
 
             <button
               type="submit"
@@ -423,17 +462,32 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
               }}
             >
               {isProcessing && <RefreshCw size={16} className="animate-spin" />}
-              {!isProcessing && !isCompleted && !needsMfa && <Watch size={16} />}
-              {!isProcessing && !isCompleted && needsMfa && <KeyRound size={16} />}
+              {!isProcessing && !isCompleted && !isMfaActive && <Watch size={16} />}
+              {!isProcessing && !isCompleted && isMfaActive && <KeyRound size={16} />}
               {isCompleted && <Check size={16} />}
               {isProcessing
-                ? (needsMfa ? 'Verifying Passcode...' : 'Connecting & Syncing...')
+                ? (isMfaActive ? 'Verifying Passcode...' : 'Connecting & Syncing...')
                 : isCompleted
                 ? 'Done'
-                : needsMfa
-                ? 'Verify Passcode & Complete Sync'
+                : isMfaActive
+                ? 'Submit Passcode & Complete Sync'
                 : 'Connect & Sync Garmin Data'}
             </button>
+
+            {/* Optional Terminal CLI note */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.74rem',
+              color: 'var(--text-subtle)',
+              marginTop: '4px',
+              paddingTop: '8px',
+              borderTop: '1px solid var(--border)'
+            }}>
+              <Terminal size={13} />
+              <span>Or run in terminal: <code>./scripts/garmin_login.py</code></span>
+            </div>
           </form>
         )}
 

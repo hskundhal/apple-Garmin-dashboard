@@ -55,6 +55,7 @@ class GarminMFABody(BaseModel):
 class GarminCredentials(BaseModel):
     email: str
     password: str
+    mfa_code: str | None = None
 
 
 @app.on_event("startup")
@@ -325,9 +326,25 @@ def sync_garmin(creds: GarminCredentials, days: int = Query(30)):
             finally:
                 c.close()
             from .garmin_provider import GarminProvider, GarminMFARequiredError, TOKEN_DIR
+
+            # If MFA code was passed directly with credentials and we have a pending client
+            if creds.mfa_code and _pending_garmin.get("client"):
+                client = _pending_garmin["client"]
+                _sync_status["message"] = "Verifying security passcode..."
+                client.resume_login({}, creds.mfa_code.strip())
+                client.client.dump(str(TOKEN_DIR))
+                _sync_status["message"] = "Passcode verified! Syncing data..."
+                provider = GarminProvider(creds.email, "", client=client)
+                result = provider.full_sync(days_back=days)
+                _sync_status["message"] = f"Done! {result}"
+                _pending_garmin.clear()
+                return
+
             provider = GarminProvider(creds.email, creds.password)
             try:
-                _sync_status["message"] = "Syncing..."
+                _sync_status["message"] = "Authenticating with Garmin..."
+                provider.login()
+                _sync_status["message"] = "Connected! Syncing Garmin metrics & activities..."
                 result = provider.full_sync(days_back=days)
                 _sync_status["message"] = f"Done! {result}"
             except GarminMFARequiredError as mfa_err:
@@ -335,7 +352,7 @@ def sync_garmin(creds: GarminCredentials, days: int = Query(30)):
                 _pending_garmin["days"] = days
                 _pending_garmin["email"] = creds.email
                 _sync_status["needs_mfa"] = True
-                _sync_status["message"] = "Garmin sent a security verification code. Please enter passcode below."
+                _sync_status["message"] = "Garmin sent a security verification code to your email. Enter passcode below."
                 return
         except Exception as e:
             logger.exception("Garmin sync failed")

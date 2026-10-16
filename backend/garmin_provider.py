@@ -77,6 +77,10 @@ class GarminProvider:
         self._client = client
         return client
 
+    def login(self) -> Garmin:
+        """Explicit upfront login to detect MFA requirement or auth failures immediately."""
+        return self._login()
+
     def _call(self, method, *args, retries=2, **kwargs):
         for attempt in range(retries + 1):
             try:

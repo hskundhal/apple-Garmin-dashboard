@@ -144,7 +144,7 @@ export const api = {
   getSyncStatus: () =>
     request<SyncStatus>("/sync/status"),
 
-  syncGarmin: (credentials: { email: string; password: string }, days = 30) =>
+  syncGarmin: (credentials: { email: string; password: string; mfa_code?: string }, days = 30) =>
     request<{ status: string }>("/sync/garmin?days=" + days, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
