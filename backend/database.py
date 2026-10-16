@@ -246,3 +246,14 @@ def is_demo_active(conn: sqlite3.Connection) -> bool:
         return True
     row = conn.execute("SELECT 1 FROM activity WHERE is_demo = 1 LIMIT 1").fetchone()
     return bool(row)
+
+def has_real_data(conn: sqlite3.Connection) -> bool:
+    """Check if real (non-demo) user data exists from Apple Health or Garmin."""
+    row = conn.execute("SELECT 1 FROM metric WHERE is_demo = 0 LIMIT 1").fetchone()
+    if row:
+        return True
+    row = conn.execute("SELECT 1 FROM activity WHERE is_demo = 0 LIMIT 1").fetchone()
+    if row:
+        return True
+    row = conn.execute("SELECT 1 FROM sleep_session WHERE is_demo = 0 LIMIT 1").fetchone()
+    return bool(row)

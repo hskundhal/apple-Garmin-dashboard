@@ -20,6 +20,12 @@ from .database import (
 
 logger = logging.getLogger(__name__)
 
+class GarminMFARequiredError(Exception):
+    def __init__(self, client: Garmin):
+        super().__init__("Garmin security passcode / MFA required")
+        self.client = client
+
+
 TOKEN_DIR = Path(__file__).resolve().parent.parent / ".garmin_tokens"
 
 ACTIVITY_TYPE_MAP = {
@@ -43,21 +49,31 @@ def _normalize_activity_type(raw: str) -> str:
 
 
 class GarminProvider:
-    def __init__(self, email: str, password: str):
+    def __init__(self, email: str, password: str, client: Garmin | None = None):
         self.email = email
         self.password = password
-        self._client: Garmin | None = None
+        self._client: Garmin | None = client
 
     def _login(self) -> Garmin:
         if self._client:
             return self._client
         TOKEN_DIR.mkdir(parents=True, exist_ok=True)
-        client = Garmin(self.email, self.password)
+        client = Garmin(self.email, self.password, return_on_mfa=True)
         try:
-            client.login(tokenstore=str(TOKEN_DIR))
-        except Exception:
-            client.login()
-            client.garth.dump(str(TOKEN_DIR))
+            mfa_status, _ = client.login(tokenstore=str(TOKEN_DIR))
+            if mfa_status == "needs_mfa":
+                raise GarminMFARequiredError(client)
+        except GarminMFARequiredError:
+            raise
+        except Exception as e:
+            logger.info("Token login failed, falling back to credentials: %s", e)
+            try:
+                mfa_status, _ = client.login()
+                if mfa_status == "needs_mfa":
+                    raise GarminMFARequiredError(client)
+                client.client.dump(str(TOKEN_DIR))
+            except GarminMFARequiredError:
+                raise
         self._client = client
         return client
 

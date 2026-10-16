@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { X, RefreshCw, Upload, Smartphone, Watch, CheckCircle2, AlertCircle, Database, Check } from 'lucide-react';
+import { X, RefreshCw, Upload, Smartphone, Watch, CheckCircle2, AlertCircle, Database, Check, KeyRound } from 'lucide-react';
 
 interface ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  hasRealData?: boolean;
 }
 
-export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuccess }) => {
+export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuccess, hasRealData }) => {
   const [activeTab, setActiveTab] = useState<'garmin' | 'apple' | 'demo'>('apple');
 
   // Garmin states
   const [garminEmail, setGarminEmail] = useState('');
   const [garminPassword, setGarminPassword] = useState('');
   const [garminDays, setGarminDays] = useState(30);
+  const [mfaCode, setMfaCode] = useState('');
+  const [needsMfa, setNeedsMfa] = useState(false);
 
   // Apple states
   const [applePath, setApplePath] = useState('~/Downloads/export.zip');
@@ -25,14 +28,19 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
   const [isCompleted, setIsCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset status on open or tab switch
+  // Reset status on modal open or tab change
   useEffect(() => {
     if (isOpen) {
       setError(null);
       setIsCompleted(false);
       setStatusMessage(null);
+      setNeedsMfa(false);
+      setMfaCode('');
+      if (hasRealData && activeTab === 'demo') {
+        setActiveTab('apple');
+      }
     }
-  }, [isOpen, activeTab]);
+  }, [isOpen, activeTab, hasRealData]);
 
   // Poll sync status if processing
   useEffect(() => {
@@ -42,6 +50,13 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
         try {
           const res = await api.getSyncStatus();
           if (res.message) setStatusMessage(res.message);
+
+          if (res.needs_mfa) {
+            setNeedsMfa(true);
+            setIsProcessing(false);
+            return;
+          }
+
           if (!res.running) {
             setIsProcessing(false);
             onSuccess();
@@ -63,6 +78,29 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
 
   const handleGarminSync = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isCompleted) {
+      handleDoneClose();
+      return;
+    }
+
+    // If waiting for MFA code, submit MFA
+    if (needsMfa) {
+      if (!mfaCode.trim()) {
+        setError('Please enter the security passcode sent by Garmin');
+        return;
+      }
+      setError(null);
+      setIsProcessing(true);
+      setStatusMessage('Verifying Garmin security passcode...');
+      try {
+        await api.submitGarminMfa(mfaCode.trim());
+      } catch (err: any) {
+        setError(err.message || 'Passcode verification failed');
+        setIsProcessing(false);
+      }
+      return;
+    }
+
     setError(null);
     setIsCompleted(false);
     setIsProcessing(true);
@@ -77,6 +115,10 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
 
   const handleAppleImport = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isCompleted) {
+      handleDoneClose();
+      return;
+    }
     setError(null);
     setIsCompleted(false);
     setIsProcessing(true);
@@ -90,6 +132,10 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
   };
 
   const handleSeedDemo = async () => {
+    if (isCompleted) {
+      handleDoneClose();
+      return;
+    }
     setError(null);
     setIsCompleted(false);
     setIsProcessing(true);
@@ -110,6 +156,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
     setIsCompleted(false);
     setStatusMessage(null);
     setError(null);
+    setNeedsMfa(false);
+    onSuccess();
     onClose();
   };
 
@@ -150,74 +198,55 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
           >
             <Watch size={15} /> Garmin Live Sync
           </button>
-          <button
-            className={`pill-btn ${activeTab === 'demo' ? 'active' : ''}`}
-            onClick={() => setActiveTab('demo')}
-            disabled={isProcessing}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-          >
-            <Database size={15} /> Sample / Demo Data
-          </button>
+          {/* Demo tab hidden once real data has been imported */}
+          {!hasRealData && (
+            <button
+              className={`pill-btn ${activeTab === 'demo' ? 'active' : ''}`}
+              onClick={() => setActiveTab('demo')}
+              disabled={isProcessing}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Database size={15} /> Sample / Demo Data
+            </button>
+          )}
         </div>
 
-        {/* Completed Success State with Done Button */}
+        {/* Success Confirmation Banner when completed */}
         {isCompleted && (
           <div
             style={{
-              padding: '16px',
+              padding: '14px 16px',
               borderRadius: '10px',
               background: 'rgba(16, 185, 129, 0.12)',
               border: '1px solid rgba(16, 185, 129, 0.35)',
               display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
               alignItems: 'center',
-              textAlign: 'center',
+              gap: '12px',
             }}
           >
             <div
               style={{
-                width: '42px',
-                height: '42px',
+                width: '36px',
+                height: '36px',
                 borderRadius: '50%',
                 background: 'rgba(16, 185, 129, 0.2)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: '#10B981',
+                flexShrink: 0,
               }}
             >
-              <CheckCircle2 size={24} />
+              <CheckCircle2 size={22} />
             </div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#10B981', marginBottom: '4px' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#10B981' }}>
                 Import Completed!
               </div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                {statusMessage || 'Your health and activity records have been updated.'}
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                {statusMessage || 'Your health metrics and activities are up to date.'}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleDoneClose}
-              className="btn-primary"
-              style={{
-                background: '#10B981',
-                borderColor: '#10B981',
-                color: '#FFFFFF',
-                padding: '9px 24px',
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                borderRadius: '8px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginTop: '4px',
-              }}
-            >
-              <Check size={16} /> Done (Close)
-            </button>
           </div>
         )}
 
@@ -261,8 +290,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
           </div>
         )}
 
-        {/* Apple Health Tab (Hidden if already completed) */}
-        {!isCompleted && activeTab === 'apple' && (
+        {/* Apple Health Tab */}
+        {activeTab === 'apple' && (
           <form onSubmit={handleAppleImport} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div className="form-group">
               <label className="form-label">Local Path to Apple Health Export</label>
@@ -272,6 +301,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
                 value={applePath}
                 onChange={(e) => setApplePath(e.target.value)}
                 placeholder="~/Downloads/export.zip"
+                disabled={isProcessing || isCompleted}
                 required
               />
               <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>
@@ -283,70 +313,132 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
               type="submit"
               className="btn-primary"
               disabled={isProcessing}
-              style={{ justifyContent: 'center' }}
+              style={{
+                justifyContent: 'center',
+                ...(isCompleted ? { background: '#10B981', borderColor: '#10B981', color: '#FFFFFF' } : {})
+              }}
             >
-              {isProcessing ? <RefreshCw size={16} className="animate-spin" /> : <Upload size={16} />}
-              Start Apple Health Import
+              {isProcessing && <RefreshCw size={16} className="animate-spin" />}
+              {!isProcessing && !isCompleted && <Upload size={16} />}
+              {isCompleted && <Check size={16} />}
+              {isProcessing ? 'Importing Apple Health...' : isCompleted ? 'Done' : 'Start Apple Health Import'}
             </button>
           </form>
         )}
 
-        {/* Garmin Connect Live Tab (Hidden if already completed) */}
-        {!isCompleted && activeTab === 'garmin' && (
+        {/* Garmin Connect Live Tab */}
+        {activeTab === 'garmin' && (
           <form onSubmit={handleGarminSync} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div className="form-group">
-              <label className="form-label">Garmin Connect Email</label>
-              <input
-                type="email"
-                className="form-input"
-                value={garminEmail}
-                onChange={(e) => setGarminEmail(e.target.value)}
-                placeholder="runner@example.com"
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Garmin Connect Password</label>
-              <input
-                type="password"
-                className="form-input"
-                value={garminPassword}
-                onChange={(e) => setGarminPassword(e.target.value)}
-                placeholder="••••••••••••"
-                required
-              />
-              <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
-                Tokens are saved locally in .garmin_tokens/ for continuous password-free syncs.
-              </span>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Sync Period (Days)</label>
-              <select
-                className="form-input"
-                value={garminDays}
-                onChange={(e) => setGarminDays(Number(e.target.value))}
+            {/* If Garmin requires MFA Passcode */}
+            {needsMfa ? (
+              <div
+                style={{
+                  background: 'rgba(56, 189, 248, 0.08)',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(56, 189, 248, 0.35)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                }}
               >
-                <option value={14}>Last 14 Days</option>
-                <option value={30}>Last 30 Days (Recommended)</option>
-                <option value={60}>Last 60 Days</option>
-                <option value={90}>Last 90 Days</option>
-              </select>
-            </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#38BDF8', fontWeight: 700 }}>
+                  <KeyRound size={20} />
+                  <span>Enter Garmin Security Passcode</span>
+                </div>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 }}>
+                  Garmin sent a temporary verification passcode to your email or SMS. Enter the code below:
+                </p>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value)}
+                  placeholder="e.g. 849201"
+                  autoFocus
+                  disabled={isProcessing || isCompleted}
+                  required
+                  style={{
+                    fontSize: '1.25rem',
+                    letterSpacing: '4px',
+                    textAlign: 'center',
+                    fontWeight: 700,
+                    padding: '10px',
+                  }}
+                />
+              </div>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Garmin Connect Email</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    value={garminEmail}
+                    onChange={(e) => setGarminEmail(e.target.value)}
+                    placeholder="runner@example.com"
+                    disabled={isProcessing || isCompleted}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Garmin Connect Password</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    value={garminPassword}
+                    onChange={(e) => setGarminPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    disabled={isProcessing || isCompleted}
+                    required
+                  />
+                  <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
+                    Tokens are saved locally in .garmin_tokens/ for continuous password-free syncs.
+                  </span>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Sync Period (Days)</label>
+                  <select
+                    className="form-input"
+                    value={garminDays}
+                    onChange={(e) => setGarminDays(Number(e.target.value))}
+                    disabled={isProcessing || isCompleted}
+                  >
+                    <option value={14}>Last 14 Days</option>
+                    <option value={30}>Last 30 Days (Recommended)</option>
+                    <option value={60}>Last 60 Days</option>
+                    <option value={90}>Last 90 Days</option>
+                  </select>
+                </div>
+              </>
+            )}
 
             <button
               type="submit"
               className="btn-primary"
               disabled={isProcessing}
-              style={{ justifyContent: 'center' }}
+              style={{
+                justifyContent: 'center',
+                ...(isCompleted ? { background: '#10B981', borderColor: '#10B981', color: '#FFFFFF' } : {})
+              }}
             >
-              {isProcessing ? <RefreshCw size={16} className="animate-spin" /> : <Watch size={16} />}
-              Connect & Sync Garmin Data
+              {isProcessing && <RefreshCw size={16} className="animate-spin" />}
+              {!isProcessing && !isCompleted && !needsMfa && <Watch size={16} />}
+              {!isProcessing && !isCompleted && needsMfa && <KeyRound size={16} />}
+              {isCompleted && <Check size={16} />}
+              {isProcessing
+                ? (needsMfa ? 'Verifying Passcode...' : 'Connecting & Syncing...')
+                : isCompleted
+                ? 'Done'
+                : needsMfa
+                ? 'Verify Passcode & Complete Sync'
+                : 'Connect & Sync Garmin Data'}
             </button>
           </form>
         )}
 
-        {/* Demo Tab (Hidden if already completed) */}
-        {!isCompleted && activeTab === 'demo' && (
+        {/* Demo Tab (Only available if no real data has been imported) */}
+        {!hasRealData && activeTab === 'demo' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
               Want to explore the charts and activity selector immediately? Click below to populate
@@ -356,9 +448,17 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
               onClick={handleSeedDemo}
               className="btn-secondary"
               disabled={isProcessing}
-              style={{ justifyContent: 'center', background: 'rgba(56, 189, 248, 0.08)', borderColor: '#38BDF8', color: '#38BDF8' }}
+              style={{
+                justifyContent: 'center',
+                ...(isCompleted
+                  ? { background: '#10B981', borderColor: '#10B981', color: '#FFFFFF' }
+                  : { background: 'rgba(56, 189, 248, 0.08)', borderColor: '#38BDF8', color: '#38BDF8' })
+              }}
             >
-              <Database size={16} /> Load 45 Days Demo Data
+              {isProcessing && <RefreshCw size={16} className="animate-spin" />}
+              {!isProcessing && !isCompleted && <Database size={16} />}
+              {isCompleted && <Check size={16} />}
+              {isProcessing ? 'Generating Demo Data...' : isCompleted ? 'Done' : 'Load 45 Days Demo Data'}
             </button>
           </div>
         )}

@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from .database import (
     get_db, init_db, get_date_bounds, get_metrics, get_activities,
     get_activity_types, get_sleep_sessions, get_sleep_stages, get_sources,
+    has_real_data, clear_demo_data,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_sync_status = {"running": False, "message": "", "progress": 0}
+_sync_status = {"running": False, "message": "", "progress": 0, "needs_mfa": False}
+_pending_garmin = {}
 
 
 def _read_profile() -> dict:
@@ -46,6 +48,9 @@ class ProfileBody(BaseModel):
     display_name: str = ""
     gender: Literal["male", "female"] = "male"
 
+
+class GarminMFABody(BaseModel):
+    mfa_code: str
 
 class GarminCredentials(BaseModel):
     email: str
@@ -70,6 +75,7 @@ def meta():
             "sources": sources,
             "activity_types": activity_types,
             "profile": _read_profile(),
+            "has_real_data": has_real_data(conn),
         }
     finally:
         conn.close()
@@ -279,6 +285,11 @@ def import_apple_health_path(zip_path: str = Query(...)):
         _sync_status["message"] = "Extracting export.xml..."
         try:
             from .apple_health_provider import extract_export_xml, import_apple_health
+            c = get_db()
+            try:
+                clear_demo_data(c)
+            finally:
+                c.close()
             xml_path = extract_export_xml(path, EXPORT_DIR)
             _sync_status["message"] = "Parsing health data..."
 
@@ -305,21 +316,69 @@ def sync_garmin(creds: GarminCredentials, days: int = Query(30)):
 
     def _run():
         _sync_status["running"] = True
+        _sync_status["needs_mfa"] = False
         _sync_status["message"] = "Connecting to Garmin..."
         try:
-            from .garmin_provider import GarminProvider
+            c = get_db()
+            try:
+                clear_demo_data(c)
+            finally:
+                c.close()
+            from .garmin_provider import GarminProvider, GarminMFARequiredError, TOKEN_DIR
             provider = GarminProvider(creds.email, creds.password)
-            _sync_status["message"] = "Syncing..."
-            result = provider.full_sync(days_back=days)
-            _sync_status["message"] = f"Done! {result}"
+            try:
+                _sync_status["message"] = "Syncing..."
+                result = provider.full_sync(days_back=days)
+                _sync_status["message"] = f"Done! {result}"
+            except GarminMFARequiredError as mfa_err:
+                _pending_garmin["client"] = mfa_err.client
+                _pending_garmin["days"] = days
+                _pending_garmin["email"] = creds.email
+                _sync_status["needs_mfa"] = True
+                _sync_status["message"] = "Garmin sent a security verification code. Please enter passcode below."
+                return
         except Exception as e:
             logger.exception("Garmin sync failed")
             _sync_status["message"] = f"Error: {e}"
         finally:
-            _sync_status["running"] = False
+            if not _sync_status.get("needs_mfa"):
+                _sync_status["running"] = False
 
     threading.Thread(target=_run, daemon=True).start()
     return {"status": "started"}
+
+
+@app.post("/api/sync/garmin/mfa")
+def sync_garmin_mfa(body: GarminMFABody):
+    client = _pending_garmin.get("client")
+    if not client:
+        return {"error": "No pending Garmin MFA session found. Please enter your credentials and try again."}
+
+    days = _pending_garmin.get("days", 30)
+    email = _pending_garmin.get("email", "")
+
+    def _run_mfa():
+        _sync_status["running"] = True
+        _sync_status["needs_mfa"] = False
+        _sync_status["message"] = "Verifying security passcode..."
+        try:
+            from .garmin_provider import GarminProvider, TOKEN_DIR
+            TOKEN_DIR.mkdir(parents=True, exist_ok=True)
+            client.resume_login({}, body.mfa_code.strip())
+            client.client.dump(str(TOKEN_DIR))
+            _sync_status["message"] = "Passcode verified! Syncing Garmin metrics, activities & sleep..."
+            provider = GarminProvider(email, "", client=client)
+            result = provider.full_sync(days_back=days)
+            _sync_status["message"] = f"Done! {result}"
+        except Exception as e:
+            logger.exception("Garmin MFA verification failed")
+            _sync_status["message"] = f"MFA Error: {e}"
+        finally:
+            _sync_status["running"] = False
+            _pending_garmin.clear()
+
+    threading.Thread(target=_run_mfa, daemon=True).start()
+    return {"status": "mfa_submitted"}
 
 
 @app.get("/api/sync/status")

@@ -13,6 +13,7 @@ interface HeaderProps {
   isRefreshing?: boolean;
   isDemo: boolean;
   onToggleDemo: (enabled: boolean) => void;
+  hasRealData?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   isRefreshing,
   isDemo,
   onToggleDemo,
+  hasRealData,
 }) => {
   const applyPreset = (days: number) => {
     const end = new Date();
@@ -64,50 +66,52 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Actions */}
       <div className="header-actions">
-        {/* Demo Mode Toggle Switch */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: isDemo ? 'rgba(56, 189, 248, 0.12)' : 'var(--card-glass)',
-            border: `1px solid ${isDemo ? 'rgba(56, 189, 248, 0.35)' : 'var(--border)'}`,
-            padding: '4px 10px',
-            borderRadius: '10px',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          <Sparkles size={14} color={isDemo ? '#38BDF8' : 'var(--text-muted)'} />
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: isDemo ? '#38BDF8' : 'var(--text-muted)' }}>
-            Demo Data: <b style={{ color: isDemo ? '#38BDF8' : 'var(--text-subtle)' }}>{isDemo ? 'ON' : 'OFF'}</b>
-          </span>
-          <button
-            onClick={() => onToggleDemo(!isDemo)}
+        {/* Demo Mode Toggle Switch (Hidden once real data is imported) */}
+        {!hasRealData && (
+          <div
             style={{
-              width: '36px',
-              height: '20px',
-              borderRadius: '999px',
-              background: isDemo ? '#38BDF8' : 'var(--border)',
-              position: 'relative',
-              padding: '2px',
-              cursor: 'pointer',
-              transition: 'background 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: isDemo ? 'rgba(56, 189, 248, 0.12)' : 'var(--card-glass)',
+              border: `1px solid ${isDemo ? 'rgba(56, 189, 248, 0.35)' : 'var(--border)'}`,
+              padding: '4px 10px',
+              borderRadius: '10px',
+              transition: 'all 0.2s ease',
             }}
-            title={isDemo ? 'Turn Demo Data OFF (clears demo data)' : 'Turn Demo Data ON (loads sample data)'}
           >
-            <div
+            <Sparkles size={14} color={isDemo ? '#38BDF8' : 'var(--text-muted)'} />
+            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: isDemo ? '#38BDF8' : 'var(--text-muted)' }}>
+              Demo Data: <b style={{ color: isDemo ? '#38BDF8' : 'var(--text-subtle)' }}>{isDemo ? 'ON' : 'OFF'}</b>
+            </span>
+            <button
+              onClick={() => onToggleDemo(!isDemo)}
               style={{
-                width: '16px',
-                height: '16px',
-                borderRadius: '50%',
-                background: '#FFFFFF',
-                transform: isDemo ? 'translateX(16px)' : 'translateX(0)',
-                transition: 'transform 0.2s',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                width: '36px',
+                height: '20px',
+                borderRadius: '999px',
+                background: isDemo ? '#38BDF8' : 'var(--border)',
+                position: 'relative',
+                padding: '2px',
+                cursor: 'pointer',
+                transition: 'background 0.2s',
               }}
-            />
-          </button>
-        </div>
+              title={isDemo ? 'Turn Demo Data OFF (clears demo data)' : 'Turn Demo Data ON (loads sample data)'}
+            >
+              <div
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '50%',
+                  background: '#FFFFFF',
+                  transform: isDemo ? 'translateX(16px)' : 'translateX(0)',
+                  transition: 'transform 0.2s',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                }}
+              />
+            </button>
+          </div>
+        )}
 
         {/* Preset Range Pills */}
         <div className="date-presets" style={{ background: 'var(--card-glass)', padding: '4px', borderRadius: '10px', border: '1px solid var(--border)' }}>

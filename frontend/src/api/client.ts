@@ -86,12 +86,20 @@ export interface ActivitySummary {
   type_breakdown: { type: string; count: number; duration_sec: number }[];
 }
 
+export interface SyncStatus {
+  running: boolean;
+  message: string;
+  progress: number;
+  needs_mfa?: boolean;
+}
+
 export interface MetaData {
   min_date: string;
   max_date: string;
   sources: string[];
   activity_types: string[];
   profile: { display_name: string; gender: string };
+  has_real_data?: boolean;
 }
 
 const BASE_URL = "/api";
@@ -134,7 +142,7 @@ export const api = {
   },
 
   getSyncStatus: () =>
-    request<{ running: boolean; message: string; progress: number }>("/sync/status"),
+    request<SyncStatus>("/sync/status"),
 
   syncGarmin: (credentials: { email: string; password: string }, days = 30) =>
     request<{ status: string }>("/sync/garmin?days=" + days, {
@@ -155,6 +163,13 @@ export const api = {
 
   getActivityHrChart: (activityId: string, theme: string) =>
     request<PlotData>(`/activity/${encodeURIComponent(activityId)}/hr-chart?theme=${theme}`),
+
+  submitGarminMfa: (mfaCode: string) =>
+    request<{ status: string }>("/sync/garmin/mfa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mfa_code: mfaCode }),
+    }),
 };
 
 export interface PlotData {

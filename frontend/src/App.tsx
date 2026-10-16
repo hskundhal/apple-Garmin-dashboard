@@ -100,6 +100,7 @@ function DashboardContent() {
         isRefreshing={isRefreshing}
         isDemo={isDemo}
         onToggleDemo={handleToggleDemo}
+        hasRealData={meta?.has_real_data}
       />
 
       {/* Main Tabs Navigation */}
@@ -133,6 +134,7 @@ function DashboardContent() {
       <ImportModal
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
+        hasRealData={meta?.has_real_data}
         onSuccess={() => {
           qc.invalidateQueries();
         }}
