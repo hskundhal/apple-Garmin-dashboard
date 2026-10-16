@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api/client';
-import { X, RefreshCw, Upload, Smartphone, Watch, CheckCircle2, AlertCircle, Database } from 'lucide-react';
+import { X, RefreshCw, Upload, Smartphone, Watch, CheckCircle2, AlertCircle, Database, Check } from 'lucide-react';
 
 interface ImportModalProps {
   isOpen: boolean;
@@ -22,7 +22,17 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
   // Status
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Reset status on open or tab switch
+  useEffect(() => {
+    if (isOpen) {
+      setError(null);
+      setIsCompleted(false);
+      setStatusMessage(null);
+    }
+  }, [isOpen, activeTab]);
 
   // Poll sync status if processing
   useEffect(() => {
@@ -35,6 +45,11 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
           if (!res.running) {
             setIsProcessing(false);
             onSuccess();
+            if (res.message && res.message.toLowerCase().includes('error')) {
+              setError(res.message);
+            } else {
+              setIsCompleted(true);
+            }
           }
         } catch (e) {
           console.error(e);
@@ -49,6 +64,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
   const handleGarminSync = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsCompleted(false);
     setIsProcessing(true);
     setStatusMessage('Initiating Garmin Connect live session...');
     try {
@@ -62,6 +78,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
   const handleAppleImport = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsCompleted(false);
     setIsProcessing(true);
     setStatusMessage('Extracting and parsing Apple Health archive...');
     try {
@@ -74,20 +91,26 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
 
   const handleSeedDemo = async () => {
     setError(null);
+    setIsCompleted(false);
     setIsProcessing(true);
     setStatusMessage('Generating combined Apple Health & Garmin dataset (45 days)...');
     try {
       await api.seedDemo(45);
       setStatusMessage('Demo data seeded successfully!');
-      setTimeout(() => {
-        setIsProcessing(false);
-        onSuccess();
-        onClose();
-      }, 1000);
+      setIsProcessing(false);
+      setIsCompleted(true);
+      onSuccess();
     } catch (err: any) {
       setError(err.message || 'Failed to seed sample data');
       setIsProcessing(false);
     }
+  };
+
+  const handleDoneClose = () => {
+    setIsCompleted(false);
+    setStatusMessage(null);
+    setError(null);
+    onClose();
   };
 
   return (
@@ -114,6 +137,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
           <button
             className={`pill-btn ${activeTab === 'apple' ? 'active' : ''}`}
             onClick={() => setActiveTab('apple')}
+            disabled={isProcessing}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <Smartphone size={15} /> Apple Health (export.zip)
@@ -121,6 +145,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
           <button
             className={`pill-btn ${activeTab === 'garmin' ? 'active' : ''}`}
             onClick={() => setActiveTab('garmin')}
+            disabled={isProcessing}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <Watch size={15} /> Garmin Live Sync
@@ -128,14 +153,76 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
           <button
             className={`pill-btn ${activeTab === 'demo' ? 'active' : ''}`}
             onClick={() => setActiveTab('demo')}
+            disabled={isProcessing}
             style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
           >
             <Database size={15} /> Sample / Demo Data
           </button>
         </div>
 
-        {/* Status / Message Banner */}
-        {statusMessage && (
+        {/* Completed Success State with Done Button */}
+        {isCompleted && (
+          <div
+            style={{
+              padding: '16px',
+              borderRadius: '10px',
+              background: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid rgba(16, 185, 129, 0.35)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              alignItems: 'center',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
+                background: 'rgba(16, 185, 129, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#10B981',
+              }}
+            >
+              <CheckCircle2 size={24} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#10B981', marginBottom: '4px' }}>
+                Import Completed!
+              </div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                {statusMessage || 'Your health and activity records have been updated.'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleDoneClose}
+              className="btn-primary"
+              style={{
+                background: '#10B981',
+                borderColor: '#10B981',
+                color: '#FFFFFF',
+                padding: '9px 24px',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginTop: '4px',
+              }}
+            >
+              <Check size={16} /> Done (Close)
+            </button>
+          </div>
+        )}
+
+        {/* Processing Status Banner */}
+        {isProcessing && statusMessage && (
           <div
             style={{
               padding: '12px 14px',
@@ -149,11 +236,12 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
               gap: '10px',
             }}
           >
-            <RefreshCw size={16} className={isProcessing ? 'animate-spin' : ''} />
+            <RefreshCw size={16} className="animate-spin" />
             <span>{statusMessage}</span>
           </div>
         )}
 
+        {/* Error Banner */}
         {error && (
           <div
             style={{
@@ -173,8 +261,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
           </div>
         )}
 
-        {/* Apple Health Tab */}
-        {activeTab === 'apple' && (
+        {/* Apple Health Tab (Hidden if already completed) */}
+        {!isCompleted && activeTab === 'apple' && (
           <form onSubmit={handleAppleImport} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div className="form-group">
               <label className="form-label">Local Path to Apple Health Export</label>
@@ -203,8 +291,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
           </form>
         )}
 
-        {/* Garmin Connect Live Tab */}
-        {activeTab === 'garmin' && (
+        {/* Garmin Connect Live Tab (Hidden if already completed) */}
+        {!isCompleted && activeTab === 'garmin' && (
           <form onSubmit={handleGarminSync} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div className="form-group">
               <label className="form-label">Garmin Connect Email</label>
@@ -257,8 +345,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onSuc
           </form>
         )}
 
-        {/* Demo Tab */}
-        {activeTab === 'demo' && (
+        {/* Demo Tab (Hidden if already completed) */}
+        {!isCompleted && activeTab === 'demo' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
               Want to explore the charts and activity selector immediately? Click below to populate
