@@ -8,7 +8,6 @@ from backend.database import (
 )
 
 def seed_demo_data(days: int = 45):
-    init_db()
     conn = get_db()
     today = date.today()
     now_str = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
@@ -82,7 +81,7 @@ def seed_demo_data(days: int = 45):
         src = "garmin" if d % 2 == 0 else "apple_health"
         session_id = f"demo:{src}:{cur_iso}"
 
-        upsert_sleep_session(
+        actual_session_id = upsert_sleep_session(
             conn,
             id=session_id,
             source=src,
@@ -101,12 +100,13 @@ def seed_demo_data(days: int = 45):
             is_demo=1
         )
 
+        conn.execute("DELETE FROM sleep_stage WHERE session_id=?", (actual_session_id,))
         t_ptr = sleep_start_dt
         stages = ["light", "deep", "rem", "light", "deep", "rem", "awake", "light"]
         stage_dur = (total_sec + awake_sec) / len(stages)
         for st in stages:
             st_end = t_ptr + timedelta(seconds=stage_dur)
-            insert_sleep_stage(conn, session_id, st, t_ptr.isoformat(), st_end.isoformat(), stage_dur)
+            insert_sleep_stage(conn, actual_session_id, st, t_ptr.isoformat(), st_end.isoformat(), stage_dur)
             t_ptr = st_end
 
         if random.random() > 0.35:

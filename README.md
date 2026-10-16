@@ -6,6 +6,26 @@ Built with **FastAPI**, **SQLite**, **React**, **TypeScript**, and **Plotly.js**
 
 ---
 
+## 📸 Screenshots & Demo Preview
+
+### Health & Sleep Timelines (Dark Mode)
+*Unified biometrics overlaying Apple Health and Garmin data with VO2 Max fitness trends, Resting HR, HRV, sleep stages architecture, consistency, and wrist temperature.*
+![Health & Sleep Timelines (Dark)](docs/screenshots/health-metrics-dark.png)
+
+### Activities & Multisport Performance
+*Activity inspection feed, volume distribution donut by sport, monthly training time breakdown, and comprehensive metrics.*
+![Activities & Multisport Performance](docs/screenshots/activities-overview-dark.png)
+
+### Per-Activity Heart Rate Profile & Zones
+*Session-specific heart rate curve with cardiovascular intensity zones (Recovery, Aerobic, Threshold, VO2Max) and load indicators.*
+![Activity Heart Rate Profile](docs/screenshots/activity-heart-rate-dark.png)
+
+### Light Theme
+*Clean, high-contrast light mode with custom oceanic & slate color palette.*
+![Health Timelines Light Mode](docs/screenshots/health-timelines-light.png)
+
+---
+
 ## ⚡ Key Features
 
 ### 1. Health & Sleep Timelines

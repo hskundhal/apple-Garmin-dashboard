@@ -94,8 +94,9 @@ CREATE INDEX IF NOT EXISTS idx_sleep_date ON sleep_session(calendar_date);
 
 def get_db() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=30.0)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 30000")
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
@@ -140,7 +141,7 @@ def upsert_activity(conn: sqlite3.Connection, **kw) -> None:
             is_demo=excluded.is_demo
     """, kw)
 
-def upsert_sleep_session(conn: sqlite3.Connection, **kw) -> None:
+def upsert_sleep_session(conn: sqlite3.Connection, **kw) -> str:
     if "is_demo" not in kw:
         kw["is_demo"] = 0
     conn.execute("""
@@ -158,6 +159,9 @@ def upsert_sleep_session(conn: sqlite3.Connection, **kw) -> None:
             overall_score=excluded.overall_score, avg_hr=excluded.avg_hr, avg_hrv=excluded.avg_hrv,
             is_demo=excluded.is_demo
     """, kw)
+    cur = conn.execute("SELECT id FROM sleep_session WHERE source=? AND calendar_date=?", (kw["source"], kw["calendar_date"]))
+    row = cur.fetchone()
+    return row[0] if row else kw["id"]
 
 def insert_sleep_stage(conn: sqlite3.Connection, session_id: str,
                         stage: str, start: str, end: str, dur: float) -> None:
