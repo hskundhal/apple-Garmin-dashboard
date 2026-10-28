@@ -43,7 +43,8 @@ Built with **FastAPI**, **SQLite**, **React**, **TypeScript**, and **Plotly.js**
 
 ### 3. Data Ingestion & Live Connection
 - **Apple Health Archive**: Stream-parse Apple Health `export.zip` (or uncompressed `export.xml`) with memory-efficient iterparse directly from local path (e.g. `~/Downloads/export.zip`).
-- **Garmin Connect Live Sync**: Authenticate with Garmin Connect credentials to sync daily biometrics, sleep sessions, and activities. Session tokens are securely cached locally in `.garmin_tokens/` for subsequent password-free syncs.
+- **Garmin Personal API Key Sync (Recommended)**: Official passwordless live sync using self-generated Garmin Developer Personal API keys (`GCDC_...`) from [connect.garmin.com/app/settings](https://connect.garmin.com/app/settings). Directly pulls full activity history, daily metrics (steps, active calories, resting HR), sleep architecture (deep, light, REM, awake), and HRV without MFA/passcode prompts.
+- **Garmin Connect Login**: Legacy credential sync with automated MFA security passcode verification.
 - **One-Click Demo Data**: Seed 45 days of realistic multi-source sample data for immediate local exploration.
 
 ---

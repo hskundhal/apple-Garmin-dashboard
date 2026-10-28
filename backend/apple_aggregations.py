@@ -76,6 +76,13 @@ def _layout(theme: str = "dark", height: int = 300, **overrides) -> dict:
         "xaxis": axis,
         "yaxis": dict(axis),
         "showlegend": False,
+        "hovermode": "closest",
+        "hoverlabel": {
+            "bgcolor": "rgba(15,23,42,0.95)" if theme == "dark" else "rgba(255,255,255,0.97)",
+            "bordercolor": t["accent"],
+            "font": {"family": "'Plus Jakarta Sans', system-ui, sans-serif", "size": 13, "color": t["text"]},
+            "namelength": -1,
+        },
     }
     base.update(overrides)
     return base
@@ -129,8 +136,8 @@ def get_vo2(conn, start: date, end: date, gender: str = "male", theme: str = "da
             "y": _safe(df["value"]),
             "mode": "markers",
             "name": "VO2 Max",
-            "marker": {"color": t["dot"], "size": 5, "opacity": 0.65},
-            "hovertemplate": "<b>%{x}</b><br>VO2: %{y:.1f} mL/min/kg<extra></extra>",
+            "marker": {"color": t["accent"], "size": 8, "opacity": 0.8, "symbol": "circle", "line": {"color": t["bg"], "width": 1}},
+            "hovertemplate": "<b>VO2 Max</b><br>📅 %{x|%b %d, %Y}<br>🫁 <b>%{y:.1f} mL/min/kg</b><extra></extra>",
         }
     ]
 
@@ -142,8 +149,10 @@ def get_vo2(conn, start: date, end: date, gender: str = "male", theme: str = "da
             "y": _safe(df["rolling"]),
             "mode": "lines",
             "name": "Trend",
-            "line": {"color": t["accent"], "width": 2.5, "shape": "spline"},
-            "hovertemplate": "<b>Trend</b>: %{y:.1f}<extra></extra>",
+            "line": {"color": t["accent"], "width": 3, "shape": "spline", "smoothing": 1.3},
+            "fill": "tozeroy",
+            "fillcolor": f"rgba(56,189,248,0.06)",
+            "hovertemplate": "<b>7-Day Trend</b><br>📅 %{x|%b %d, %Y}<br>🫁 <b>%{y:.1f} mL/min/kg</b><extra></extra>",
         })
 
     layout = _layout(theme, shapes=shapes, annotations=annotations)
@@ -174,7 +183,7 @@ def get_rhr_hrv_weekly(conn, start: date, end: date, theme: str = "dark") -> dic
             "line": {"color": t["hrv"], "width": 2, "dash": "dot"},
             "opacity": 0.9,
             "yaxis": "y2",
-            "hovertemplate": "%{x}<br>HRV: %{y:.1f} ms<extra></extra>",
+            "hovertemplate": "<b>HRV SDNN</b><br>📅 %{x|%b %d, %Y}<br>💜 <b>%{y:.1f} ms</b><extra></extra>",
         })
 
     if not df_rhr.empty:
@@ -187,7 +196,7 @@ def get_rhr_hrv_weekly(conn, start: date, end: date, theme: str = "dark") -> dic
             "name": "Resting HR (bpm)",
             "line": {"color": t["accent2"], "width": 2.5, "shape": "spline"},
             "yaxis": "y",
-            "hovertemplate": "%{x}<br>RHR: %{y:.1f} bpm<extra></extra>",
+            "hovertemplate": "<b>Resting HR</b><br>📅 %{x|%b %d, %Y}<br>❤️ <b>%{y:.1f} bpm</b><extra></extra>",
         })
 
     layout = _layout(theme, margin={"l": 44, "r": 44, "t": 24, "b": 36})
@@ -240,7 +249,8 @@ def get_sleep_stages_weekly(conn, start: date, end: date, theme: str = "dark") -
             "y": [round(v, 2) for v in weekly[col]],
             "name": name,
             "marker": {"color": color},
-            "hovertemplate": f"<b>{name}</b>: %{{y:.1f}} hrs<extra></extra>",
+            "hovertemplate": f"<b>{name}</b><br>📅 %{{x|%b %d, %Y}}<br>⏱️ <b>%{{y:.2f}} hrs</b><extra></extra>",
+            "marker": {"opacity": 0.9, "line": {"color": "rgba(0,0,0,0.15)", "width": 0.5}},
         })
 
     layout = _layout(theme, barmode="stack", showlegend=True)
@@ -273,8 +283,8 @@ def get_sleep_duration_trend(conn, start: date, end: date, theme: str = "dark") 
             "y": [round(v, 2) for v in df["hrs"]],
             "mode": "markers",
             "name": "Nightly",
-            "marker": {"size": 4, "opacity": 0.45, "color": t["dot"]},
-            "hovertemplate": "%{x}<br><b>Sleep</b>: %{y:.1f} hrs<extra></extra>",
+            "marker": {"size": 6, "opacity": 0.6, "color": t["accent"], "symbol": "circle"},
+            "hovertemplate": "<b>Nightly Sleep</b><br>📅 %{x|%b %d, %Y}<br>🌙 <b>%{y:.2f} hrs</b><extra></extra>",
         },
         {
             "type": "scatter",
@@ -282,8 +292,10 @@ def get_sleep_duration_trend(conn, start: date, end: date, theme: str = "dark") 
             "y": [round(v, 2) for v in df["rolling"]],
             "mode": "lines",
             "name": "7-day avg",
-            "line": {"color": t["accent"], "width": 2.5, "shape": "spline"},
-            "hovertemplate": "%{x}<br><b>7-Day Avg</b>: %{y:.1f} hrs<extra></extra>",
+            "line": {"color": t["accent"], "width": 3, "shape": "spline", "smoothing": 1.3},
+            "fill": "tozeroy",
+            "fillcolor": "rgba(56,189,248,0.07)",
+            "hovertemplate": "<b>7-Day Avg Sleep</b><br>📅 %{x|%b %d, %Y}<br>🌙 <b>%{y:.2f} hrs</b><extra></extra>",
         },
         {
             "type": "scatter",
@@ -437,8 +449,8 @@ def get_wrist_temp(conn, start: date, end: date, theme: str = "dark") -> dict | 
             "y": [round(v, 2) for v in df["value"]],
             "mode": "markers",
             "name": "Nightly Temp",
-            "marker": {"color": t["dot"], "size": 4, "opacity": 0.55},
-            "hovertemplate": "%{x}<br><b>Temp</b>: %{y:.2f} °C<extra></extra>",
+            "marker": {"color": t["accent2"], "size": 6, "opacity": 0.65, "symbol": "circle"},
+            "hovertemplate": "<b>Wrist Temp</b><br>📅 %{x|%b %d, %Y}<br>🌡️ <b>%{y:.2f} °C</b><extra></extra>",
         },
         {
             "type": "scatter",
@@ -447,7 +459,9 @@ def get_wrist_temp(conn, start: date, end: date, theme: str = "dark") -> dict | 
             "mode": "lines",
             "name": "7-day avg",
             "line": {"color": t["accent2"], "width": 2.5, "shape": "spline"},
-            "hovertemplate": "%{x}<br><b>Avg</b>: %{y:.2f} °C<extra></extra>",
+            "hovertemplate": "<b>7-Day Avg Temp</b><br>📅 %{x|%b %d, %Y}<br>🌡️ <b>%{y:.2f} °C</b><extra></extra>",
+            "fill": "tozeroy",
+            "fillcolor": "rgba(244,63,94,0.06)",
         },
     ]
 

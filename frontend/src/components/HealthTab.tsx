@@ -57,6 +57,39 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
     queryFn: () => appleHealthApi.getWristTemp(startDate, endDate, theme),
   });
 
+  // ── Data gap filling: create full date range, linearly interpolate missing values
+  const fillDataGaps = (entries: MetricEntry[]): MetricEntry[] => {
+    if (entries.length < 2) return entries;
+    const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+    const startD = new Date(sorted[0].date);
+    const endD = new Date(sorted[sorted.length - 1].date);
+    const byDate = new Map(sorted.map((e) => [e.date, e]));
+    const filled: MetricEntry[] = [];
+    const cursor = new Date(startD);
+    while (cursor <= endD) {
+      const key = cursor.toISOString().slice(0, 10);
+      if (byDate.has(key)) {
+        filled.push(byDate.get(key)!);
+      } else {
+        // find nearest neighbours for linear interpolation
+        const before = filled.filter((e) => e.date < key);
+        const after = sorted.filter((e) => e.date > key);
+        if (before.length > 0 && after.length > 0) {
+          const bEntry = before[before.length - 1];
+          const aEntry = after[0];
+          const bDate = new Date(bEntry.date).getTime();
+          const aDate = new Date(aEntry.date).getTime();
+          const cDate = cursor.getTime();
+          const frac = (cDate - bDate) / (aDate - bDate);
+          const interp = bEntry.value + frac * (aEntry.value - bEntry.value);
+          filled.push({ date: key, value: Math.round(interp * 10) / 10, source: bEntry.source, id: bEntry.id, metric_type: bEntry.metric_type, unit: bEntry.unit, timestamp: null });
+        }
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return filled;
+  };
+
   // Helper to build rolling average
   const buildRollingAvg = (entries: MetricEntry[], windowSize = 7) => {
     if (entries.length < windowSize) return [];
@@ -75,42 +108,62 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
     const apple = heartData.resting_hr.filter((r) => r.source === 'apple_health');
     const traces: any[] = [];
 
+    // Reference band: healthy RHR zone 50-70 bpm
+    traces.push({
+      x: [] as string[],
+      y: [] as number[],
+      type: 'scatter',
+      mode: 'none',
+      fill: 'tozeroy',
+      fillcolor: 'rgba(16,185,129,0)',
+      showlegend: false,
+      hoverinfo: 'skip',
+    });
+
     if (garmin.length > 0) {
+      const filled = fillDataGaps(garmin);
       traces.push({
-        x: garmin.map((r) => r.date),
-        y: garmin.map((r) => r.value),
-        name: 'Garmin RHR',
+        x: filled.map((r) => r.date),
+        y: filled.map((r) => r.value),
+        name: '🔵 Garmin RHR',
         type: 'scatter',
         mode: 'lines+markers',
-        line: { color: t.garminColor, width: 2.2 },
-        marker: { size: 5, color: t.garminColor },
-        hovertemplate: '<b>Garmin RHR</b>: %{y:.1f} bpm<br>%{x}<extra></extra>',
+        connectgaps: true,
+        line: { color: t.garminColor, width: 2.5, shape: 'spline', smoothing: 0.8 },
+        marker: { size: 5, color: t.garminColor, opacity: 0.85, symbol: 'circle' },
+        hovertemplate: '<b>Garmin RHR</b><br>%{x|%b %d, %Y}<br><b>%{y:.0f} bpm</b><extra></extra>',
       });
     }
 
     if (apple.length > 0) {
+      const filled = fillDataGaps(apple);
       traces.push({
-        x: apple.map((r) => r.date),
-        y: apple.map((r) => r.value),
-        name: 'Apple RHR',
+        x: filled.map((r) => r.date),
+        y: filled.map((r) => r.value),
+        name: '🍎 Apple RHR',
         type: 'scatter',
         mode: 'lines+markers',
-        line: { color: t.appleColor, width: 2.2, dash: 'dot' },
-        marker: { size: 5, color: t.appleColor },
-        hovertemplate: '<b>Apple RHR</b>: %{y:.1f} bpm<br>%{x}<extra></extra>',
+        connectgaps: true,
+        line: { color: t.appleColor, width: 2.2, dash: 'dot', shape: 'spline', smoothing: 0.8 },
+        marker: { size: 5, color: t.appleColor, opacity: 0.85, symbol: 'circle' },
+        hovertemplate: '<b>Apple RHR</b><br>%{x|%b %d, %Y}<br><b>%{y:.0f} bpm</b><extra></extra>',
       });
     }
 
-    const rolling = buildRollingAvg(apple.length > 0 ? apple : garmin);
+    const base = apple.length > 0 ? apple : garmin;
+    const rolling = buildRollingAvg(fillDataGaps(base));
     if (rolling.length > 0) {
       traces.push({
         x: rolling.map((r) => r.date),
         y: rolling.map((r) => r.value),
-        name: '7-Day Trend',
+        name: '📈 7-Day Trend',
         type: 'scatter',
         mode: 'lines',
-        line: { color: '#F59E0B', width: 2.5, shape: 'spline' },
-        hovertemplate: '<b>7-Day Trend</b>: %{y:.1f} bpm<extra></extra>',
+        connectgaps: true,
+        line: { color: '#F59E0B', width: 3, shape: 'spline', smoothing: 1.2 },
+        fill: 'tozeroy',
+        fillcolor: 'rgba(245,158,11,0.06)',
+        hovertemplate: '<b>7-Day Trend</b><br>%{x|%b %d, %Y}<br><b>%{y:.1f} bpm</b><extra></extra>',
       });
     }
 
@@ -120,16 +173,19 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
   // 2. Normal / Ambient HR Traces
   const buildNormalHrTraces = () => {
     if (!heartData?.heart_rate) return [];
-    const sorted = [...heartData.heart_rate].sort((a, b) => a.date.localeCompare(b.date));
+    const sorted = fillDataGaps(
+      [...heartData.heart_rate].sort((a, b) => a.date.localeCompare(b.date))
+    );
     const traces: any[] = [
       {
         x: sorted.map((r) => r.date),
         y: sorted.map((r) => r.value),
-        name: 'Normal HR (Daily Avg)',
+        name: '❤️ Daily Avg HR',
         type: 'scatter',
         mode: 'markers',
-        marker: { size: 6, color: t.heartColor, opacity: 0.6 },
-        hovertemplate: '<b>Daily Avg HR</b>: %{y:.1f} bpm<br>%{x}<extra></extra>',
+        connectgaps: true,
+        marker: { size: 6, color: t.heartColor, opacity: 0.65, symbol: 'circle' },
+        hovertemplate: '<b>Daily Avg HR</b><br>%{x|%b %d, %Y}<br><b>%{y:.0f} bpm</b><extra></extra>',
       },
     ];
 
@@ -138,11 +194,14 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
       traces.push({
         x: rolling.map((r) => r.date),
         y: rolling.map((r) => r.value),
-        name: '7-Day Avg Baseline',
+        name: '📉 7-Day Baseline',
         type: 'scatter',
         mode: 'lines',
-        line: { color: '#EC4899', width: 2.5, shape: 'spline' },
-        hovertemplate: '<b>Trend</b>: %{y:.1f} bpm<extra></extra>',
+        connectgaps: true,
+        line: { color: '#EC4899', width: 3, shape: 'spline', smoothing: 1.2 },
+        fill: 'tozeroy',
+        fillcolor: 'rgba(236,72,153,0.05)',
+        hovertemplate: '<b>7-Day Trend</b><br>%{x|%b %d, %Y}<br><b>%{y:.1f} bpm</b><extra></extra>',
       });
     }
     return traces;
@@ -152,20 +211,38 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
   const buildHrvTraces = () => {
     if (!heartData?.hrv) return [];
     const sorted = [...heartData.hrv].sort((a, b) => a.date.localeCompare(b.date));
-    const apple = sorted.filter((r) => r.source === 'apple_health');
-    const garmin = sorted.filter((r) => r.source === 'garmin');
+    const apple = fillDataGaps(sorted.filter((r) => r.source === 'apple_health'));
+    const garmin = fillDataGaps(sorted.filter((r) => r.source === 'garmin'));
     const traces: any[] = [];
+
+    // HRV reference band 25–65 ms (healthy range)
+    const allDates = sorted.map((r) => r.date);
+    if (allDates.length > 0) {
+      traces.push({
+        x: [...allDates, ...allDates.slice().reverse()],
+        y: [...allDates.map(() => 65), ...allDates.map(() => 25)],
+        fill: 'toself',
+        fillcolor: 'rgba(16,185,129,0.07)',
+        line: { color: 'transparent' },
+        name: 'Healthy HRV Range',
+        showlegend: true,
+        hoverinfo: 'skip',
+        type: 'scatter',
+        mode: 'none',
+      });
+    }
 
     if (apple.length > 0) {
       traces.push({
         x: apple.map((r) => r.date),
         y: apple.map((r) => r.value),
-        name: 'Apple HRV (SDNN)',
+        name: '🍎 Apple HRV',
         type: 'scatter',
         mode: 'lines+markers',
-        line: { color: t.hrvColor, width: 2 },
-        marker: { size: 5, color: t.hrvColor },
-        hovertemplate: '<b>Apple HRV</b>: %{y:.1f} ms<br>%{x}<extra></extra>',
+        connectgaps: true,
+        line: { color: t.hrvColor, width: 2.5, shape: 'spline', smoothing: 0.9 },
+        marker: { size: 5, color: t.hrvColor, opacity: 0.9, symbol: 'circle' },
+        hovertemplate: '<b>Apple HRV (SDNN)</b><br>%{x|%b %d, %Y}<br><b>%{y:.1f} ms</b><extra></extra>',
       });
     }
 
@@ -173,12 +250,28 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
       traces.push({
         x: garmin.map((r) => r.date),
         y: garmin.map((r) => r.value),
-        name: 'Garmin HRV',
+        name: '🔵 Garmin HRV',
         type: 'scatter',
         mode: 'lines+markers',
-        line: { color: '#06B6D4', width: 2, dash: 'dot' },
-        marker: { size: 5, color: '#06B6D4' },
-        hovertemplate: '<b>Garmin HRV</b>: %{y:.1f} ms<br>%{x}<extra></extra>',
+        connectgaps: true,
+        line: { color: '#06B6D4', width: 2.2, dash: 'dot', shape: 'spline', smoothing: 0.9 },
+        marker: { size: 5, color: '#06B6D4', opacity: 0.9, symbol: 'diamond' },
+        hovertemplate: '<b>Garmin HRV</b><br>%{x|%b %d, %Y}<br><b>%{y:.1f} ms</b><extra></extra>',
+      });
+    }
+
+    const bestSource = apple.length > 0 ? apple : garmin;
+    const rolling = buildRollingAvg(bestSource);
+    if (rolling.length > 0) {
+      traces.push({
+        x: rolling.map((r) => r.date),
+        y: rolling.map((r) => r.value),
+        name: '📈 7-Day Trend',
+        type: 'scatter',
+        mode: 'lines',
+        connectgaps: true,
+        line: { color: '#F59E0B', width: 2.5, shape: 'spline', smoothing: 1.3 },
+        hovertemplate: '<b>7-Day Trend</b><br>%{x|%b %d, %Y}<br><b>%{y:.1f} ms</b><extra></extra>',
       });
     }
 
@@ -189,29 +282,35 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
   const buildWalkingAndRecoveryTraces = () => {
     const traces: any[] = [];
     if (heartData?.walking_hr && heartData.walking_hr.length > 0) {
+      const filled = fillDataGaps([...heartData.walking_hr].sort((a, b) => a.date.localeCompare(b.date)));
       traces.push({
-        x: heartData.walking_hr.map((r) => r.date),
-        y: heartData.walking_hr.map((r) => r.value),
-        name: 'Walking HR Avg (bpm)',
+        x: filled.map((r) => r.date),
+        y: filled.map((r) => r.value),
+        name: '🚶 Walking HR',
         type: 'scatter',
         mode: 'lines+markers',
-        line: { color: '#10B981', width: 2.2 },
-        marker: { size: 5, color: '#10B981' },
-        hovertemplate: '<b>Walking HR</b>: %{y:.1f} bpm<br>%{x}<extra></extra>',
+        connectgaps: true,
+        line: { color: '#10B981', width: 2.5, shape: 'spline', smoothing: 0.9 },
+        marker: { size: 5, color: '#10B981', opacity: 0.85 },
+        hovertemplate: '<b>Walking HR</b><br>%{x|%b %d, %Y}<br><b>%{y:.0f} bpm</b><extra></extra>',
         yaxis: 'y',
+        fill: 'tozeroy',
+        fillcolor: 'rgba(16,185,129,0.05)',
       });
     }
 
     if (heartData?.hr_recovery && heartData.hr_recovery.length > 0) {
+      const filled = fillDataGaps([...heartData.hr_recovery].sort((a, b) => a.date.localeCompare(b.date)));
       traces.push({
-        x: heartData.hr_recovery.map((r) => r.date),
-        y: heartData.hr_recovery.map((r) => r.value),
-        name: '1-Min Recovery Drop (bpm)',
+        x: filled.map((r) => r.date),
+        y: filled.map((r) => r.value),
+        name: '⚡ 1-Min Recovery Drop',
         type: 'scatter',
         mode: 'lines+markers',
-        line: { color: '#F59E0B', width: 2, dash: 'dot' },
-        marker: { size: 5, color: '#F59E0B' },
-        hovertemplate: '<b>Recovery</b>: %{y:.1f} bpm drop<br>%{x}<extra></extra>',
+        connectgaps: true,
+        line: { color: '#F59E0B', width: 2.5, dash: 'dot', shape: 'spline', smoothing: 0.9 },
+        marker: { size: 5, color: '#F59E0B', opacity: 0.85, symbol: 'triangle-up' },
+        hovertemplate: '<b>Recovery Drop</b><br>%{x|%b %d, %Y}<br><b>%{y:.0f} bpm drop</b><extra></extra>',
         yaxis: 'y2',
       });
     }

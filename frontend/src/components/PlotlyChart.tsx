@@ -22,7 +22,7 @@ export const PlotlyChart: React.FC<PlotlyChartProps> = ({
   const defaultLayout = {
     autosize: true,
     height,
-    margin: { l: 45, r: 25, t: 30, b: 40 },
+    margin: { l: 50, r: 28, t: 32, b: 44 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
     font: {
@@ -36,6 +36,7 @@ export const PlotlyChart: React.FC<PlotlyChartProps> = ({
       tickcolor: t.grid,
       color: t.tick,
       showline: false,
+      tickfont: { size: 10 },
     },
     yaxis: {
       gridcolor: t.grid,
@@ -43,17 +44,25 @@ export const PlotlyChart: React.FC<PlotlyChartProps> = ({
       tickcolor: t.grid,
       color: t.tick,
       showline: false,
+      tickfont: { size: 10 },
     },
     hoverlabel: {
-      bgcolor: theme === 'dark' ? '#1F2937' : '#FFFFFF',
-      bordercolor: t.border,
-      font: { family: "'Plus Jakarta Sans', sans-serif", size: 12, color: t.text },
+      bgcolor: theme === 'dark' ? 'rgba(15,23,42,0.96)' : 'rgba(255,255,255,0.97)',
+      bordercolor: theme === 'dark' ? '#38BDF8' : '#0284C7',
+      font: {
+        family: "'Plus Jakarta Sans', system-ui, sans-serif",
+        size: 13,
+        color: theme === 'dark' ? '#F8FAFC' : '#0F172A',
+      },
+      namelength: -1,
     },
+    hovermode: 'x unified',
     legend: {
       orientation: 'h',
       x: 0,
-      y: 1.12,
+      y: 1.14,
       font: { color: t.textMuted, size: 11 },
+      bgcolor: 'rgba(0,0,0,0)',
     },
     ...layout,
   };
@@ -65,7 +74,12 @@ export const PlotlyChart: React.FC<PlotlyChartProps> = ({
         layout={defaultLayout}
         config={{
           responsive: true,
-          displayModeBar: false,
+          displayModeBar: true,
+          modeBarButtonsToRemove: [
+            'select2d', 'lasso2d', 'toggleSpikelines',
+            'hoverCompareCartesian', 'hoverClosestCartesian',
+          ],
+          displaylogo: false,
           showTips: false,
         }}
         useResizeHandler

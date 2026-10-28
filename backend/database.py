@@ -78,6 +78,12 @@ CREATE TABLE IF NOT EXISTS garmin_credentials (
     updated_at  TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS garmin_api_config (
+    id          INTEGER PRIMARY KEY CHECK (id = 1),
+    api_key     TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sync_state (
     id          INTEGER PRIMARY KEY CHECK (id = 1),
     source      TEXT NOT NULL,
@@ -257,3 +263,19 @@ def has_real_data(conn: sqlite3.Connection) -> bool:
         return True
     row = conn.execute("SELECT 1 FROM sleep_session WHERE is_demo = 0 LIMIT 1").fetchone()
     return bool(row)
+
+def save_garmin_api_key(conn: sqlite3.Connection, api_key: str) -> None:
+    conn.execute("CREATE TABLE IF NOT EXISTS garmin_api_config (id INTEGER PRIMARY KEY CHECK (id = 1), api_key TEXT NOT NULL, updated_at TEXT NOT NULL)")
+    now = datetime.now().isoformat()
+    conn.execute("""
+        INSERT INTO garmin_api_config (id, api_key, updated_at)
+        VALUES (1, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET api_key=excluded.api_key, updated_at=excluded.updated_at
+    """, (api_key.strip(), now))
+    conn.commit()
+
+def get_garmin_api_key(conn: sqlite3.Connection) -> str | None:
+    conn.execute("CREATE TABLE IF NOT EXISTS garmin_api_config (id INTEGER PRIMARY KEY CHECK (id = 1), api_key TEXT NOT NULL, updated_at TEXT NOT NULL)")
+    row = conn.execute("SELECT api_key FROM garmin_api_config WHERE id = 1").fetchone()
+    return row[0] if row else None
+

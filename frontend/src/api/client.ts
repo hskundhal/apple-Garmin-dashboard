@@ -144,6 +144,16 @@ export const api = {
   getSyncStatus: () =>
     request<SyncStatus>("/sync/status"),
 
+  syncGarminApiKey: (apiKey: string, days = 0) =>
+    request<{ status: string }>("/sync/garmin-api-key", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ api_key: apiKey, days }),
+    }),
+
+  getGarminApiKeyStatus: () =>
+    request<{ configured: boolean; masked_key: string | null }>("/garmin-api-key/status"),
+
   syncGarmin: (credentials: { email: string; password: string; mfa_code?: string }, days = 30) =>
     request<{ status: string }>("/sync/garmin?days=" + days, {
       method: "POST",

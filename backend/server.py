@@ -58,6 +58,11 @@ class GarminCredentials(BaseModel):
     mfa_code: str | None = None
 
 
+class GarminApiKeyBody(BaseModel):
+    api_key: str = ""
+    days: int = 0
+
+
 @app.on_event("startup")
 def startup():
     init_db()
@@ -396,6 +401,77 @@ def sync_garmin_mfa(body: GarminMFABody):
 
     threading.Thread(target=_run_mfa, daemon=True).start()
     return {"status": "mfa_submitted"}
+
+
+@app.get("/api/garmin-api-key/status")
+def garmin_api_key_status():
+    conn = get_db()
+    try:
+        from .database import get_garmin_api_key
+        key = get_garmin_api_key(conn)
+        if not key:
+            kf = Path(__file__).resolve().parent.parent / "data" / ".garmin_api_key"
+            if kf.exists():
+                key = kf.read_text().strip()
+        if key:
+            masked = key[:9] + "..." + key[-4:] if len(key) > 13 else "***"
+            return {"configured": True, "masked_key": masked}
+        return {"configured": False, "masked_key": None}
+    finally:
+        conn.close()
+
+
+@app.post("/api/sync/garmin-api-key")
+def sync_garmin_api_key(body: GarminApiKeyBody):
+    if _sync_status["running"]:
+        return {"error": "A sync is already running"}
+
+    api_key = body.api_key.strip()
+    if not api_key:
+        conn = get_db()
+        try:
+            from .database import get_garmin_api_key
+            saved = get_garmin_api_key(conn)
+            if saved:
+                api_key = saved
+            else:
+                kf = Path(__file__).resolve().parent.parent / "data" / ".garmin_api_key"
+                if kf.exists():
+                    api_key = kf.read_text().strip()
+        finally:
+            conn.close()
+
+    if not api_key:
+        return {"error": "Please provide a Garmin Personal API Key"}
+
+    def _run():
+        _sync_status["running"] = True
+        _sync_status["needs_mfa"] = False
+        _sync_status["message"] = "Connecting to Garmin Personal API..."
+        try:
+            c = get_db()
+            try:
+                clear_demo_data(c)
+            finally:
+                c.close()
+            from .garmin_personal_api import GarminPersonalApiProvider
+
+            provider = GarminPersonalApiProvider(api_key)
+            _sync_status["message"] = "Connected! Syncing activities & health metrics..."
+
+            def progress_cb(msg: str):
+                _sync_status["message"] = msg
+
+            result = provider.full_sync(days_back=body.days, progress_cb=progress_cb)
+            _sync_status["message"] = f"Done! Synced {result.get('activities', 0)} activities, {result.get('sleep_sessions', 0)} sleep nights, and daily metrics."
+        except Exception as e:
+            logger.exception("Garmin API Key sync failed")
+            _sync_status["message"] = f"Error: {e}"
+        finally:
+            _sync_status["running"] = False
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"status": "started"}
 
 
 @app.get("/api/sync/status")
