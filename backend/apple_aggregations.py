@@ -31,7 +31,7 @@ THEME_COLORS = {
         "border": "#1E293B",
         "text": "#F8FAFC",
         "tick": "#94A3B8",
-        "grid": "rgba(255, 255, 255, 0.05)",
+        "grid": "rgba(255, 255, 255, 0.06)",
         "accent": "#38BDF8",
         "accent2": "#F43F5E",
         "hrv": "#818CF8",
@@ -47,42 +47,51 @@ THEME_COLORS = {
         "border": "#E2E8F0",
         "text": "#0F172A",
         "tick": "#64748B",
-        "grid": "rgba(15, 23, 42, 0.06)",
+        "grid": "rgba(15, 23, 42, 0.07)",
         "accent": "#0284C7",
         "accent2": "#E11D48",
         "hrv": "#6366F1",
         "dot": "#CBD5E1",
-        "deep": "#1E3A8A",
-        "light": "#0284C7",
-        "rem": "#6366F1",
+        "deep": "#1D4ED8",
+        "light": "#0EA5E9",
+        "rem": "#7C3AED",
         "awake": "#94A3B8",
     },
 }
 
 def _layout(theme: str = "dark", height: int = 300, **overrides) -> dict:
     t = THEME_COLORS.get(theme, THEME_COLORS["dark"])
+    is_light = theme == "light"
     axis = {
         "gridcolor": t["grid"],
-        "zerolinecolor": t["grid"],
+        "zerolinecolor": "rgba(0,0,0,0)",
         "linecolor": "rgba(0,0,0,0)",
         "tickfont": {"size": 10, "color": t["tick"]},
+        "showline": False,
+        "tickcolor": "rgba(0,0,0,0)",
     }
     base = {
         "paper_bgcolor": t["bg"],
         "plot_bgcolor": t["bg"],
         "font": {"family": "'Plus Jakarta Sans', system-ui, sans-serif", "color": t["tick"], "size": 11},
         "height": height,
-        "margin": {"l": 48, "r": 24, "t": 28, "b": 38},
-        "xaxis": axis,
+        "margin": {"l": 46, "r": 20, "t": 24, "b": 36},
+        "xaxis": dict(axis),
         "yaxis": dict(axis),
         "showlegend": False,
-        "hovermode": "closest",
+        "hovermode": "x unified",
         "hoverlabel": {
-            "bgcolor": "rgba(15,23,42,0.95)" if theme == "dark" else "rgba(255,255,255,0.97)",
+            "bgcolor": "rgba(255,255,255,0.98)" if is_light else "rgba(15,23,42,0.97)",
             "bordercolor": t["accent"],
-            "font": {"family": "'Plus Jakarta Sans', system-ui, sans-serif", "size": 13, "color": t["text"]},
+            "font": {"family": "'Plus Jakarta Sans', system-ui, sans-serif", "size": 12, "color": t["text"]},
             "namelength": -1,
+            "align": "left",
         },
+        # Subtle crosshair spike
+        "xaxis_spikecolor": t["accent"] if is_light else "rgba(56,189,248,0.3)",
+        "xaxis_spikethickness": 1,
+        "xaxis_spikedash": "dot",
+        "xaxis_spikemode": "across",
     }
     base.update(overrides)
     return base
@@ -101,33 +110,56 @@ def _hour_str(h: float, short: bool = False) -> str:
         return f"{dh} {p}" if minute == 0 else f"{dh}:{minute:02d} {p}"
     return f"{dh}:{minute:02d} {p}"
 
+def _interpolate_gaps(df: pd.DataFrame, date_col: str = "date", value_col: str = "value") -> pd.DataFrame:
+    """Fill missing dates with linear interpolation between neighbours."""
+    if df.empty or len(df) < 2:
+        return df
+    df = df.copy().sort_values(date_col)
+    df[date_col] = pd.to_datetime(df[date_col])
+    full_range = pd.date_range(df[date_col].min(), df[date_col].max(), freq="D")
+    df = df.set_index(date_col).reindex(full_range)
+    df[value_col] = df[value_col].interpolate(method="linear", limit_direction="both")
+    df = df.reset_index().rename(columns={"index": date_col})
+    df[date_col] = df[date_col].dt.strftime("%Y-%m-%d")
+    return df
+
 
 # ── 1. VO2 Max Trend ────────────────────────────────────────────────────────
 def get_vo2(conn, start: date, end: date, gender: str = "male", theme: str = "dark") -> dict | None:
     t = THEME_COLORS.get(theme, THEME_COLORS["dark"])
+    is_light = theme == "light"
     records = get_metrics(conn, "vo2max", start, end)
     if not records:
         return None
 
     df = pd.DataFrame(records).sort_values("date")
+    df = _interpolate_gaps(df)
     bands = VO2_BANDS.get(gender, VO2_BANDS["male"])
+
+    band_colors_light = ["rgba(16,185,129,0.06)", "rgba(59,130,246,0.05)", "rgba(139,92,246,0.04)", "rgba(245,158,11,0.04)"]
+    band_colors_dark  = ["rgba(16,185,129,0.07)", "rgba(59,130,246,0.06)", "rgba(139,92,246,0.05)", "rgba(245,158,11,0.05)"]
+    band_colors = band_colors_light if is_light else band_colors_dark
 
     shapes = [
         {
             "type": "rect", "xref": "paper", "x0": 0, "x1": 1,
-            "y0": y0, "y1": y1, "fillcolor": t["text"], "opacity": 0.04,
+            "y0": y0, "y1": y1,
+            "fillcolor": band_colors[i % len(band_colors)],
+            "opacity": 1,
             "layer": "below", "line": {"width": 0},
         }
-        for _, y0, y1 in bands
+        for i, (_, y0, y1) in enumerate(bands)
     ]
     annotations = [
         {
             "x": 0.99, "xref": "paper", "xanchor": "right",
-            "y": (y0 + y1) / 2, "text": label, "showarrow": False,
+            "y": (y0 + y1) / 2, "text": f"<b>{label}</b>", "showarrow": False,
             "font": {"size": 9, "color": t["tick"]},
         }
         for label, y0, y1 in bands
     ]
+
+    accent_fill = "rgba(2,132,199,0.08)" if is_light else "rgba(56,189,248,0.06)"
 
     traces = [
         {
@@ -136,8 +168,12 @@ def get_vo2(conn, start: date, end: date, gender: str = "male", theme: str = "da
             "y": _safe(df["value"]),
             "mode": "markers",
             "name": "VO2 Max",
-            "marker": {"color": t["accent"], "size": 8, "opacity": 0.8, "symbol": "circle", "line": {"color": t["bg"], "width": 1}},
-            "hovertemplate": "<b>VO2 Max</b><br>📅 %{x|%b %d, %Y}<br>🫁 <b>%{y:.1f} mL/min/kg</b><extra></extra>",
+            "marker": {
+                "color": t["accent"], "size": 7, "opacity": 0.85,
+                "symbol": "circle",
+                "line": {"color": "white" if is_light else t["bg"], "width": 1.5},
+            },
+            "hovertemplate": "<b>VO2 Max</b>  %{y:.1f} mL/min/kg<extra></extra>",
         }
     ]
 
@@ -148,15 +184,16 @@ def get_vo2(conn, start: date, end: date, gender: str = "male", theme: str = "da
             "x": df["date"].tolist(),
             "y": _safe(df["rolling"]),
             "mode": "lines",
-            "name": "Trend",
-            "line": {"color": t["accent"], "width": 3, "shape": "spline", "smoothing": 1.3},
+            "name": "7-Day Trend",
+            "line": {"color": t["accent"], "width": 2.5, "shape": "spline", "smoothing": 1.3},
             "fill": "tozeroy",
-            "fillcolor": f"rgba(56,189,248,0.06)",
-            "hovertemplate": "<b>7-Day Trend</b><br>📅 %{x|%b %d, %Y}<br>🫁 <b>%{y:.1f} mL/min/kg</b><extra></extra>",
+            "fillcolor": accent_fill,
+            "hovertemplate": "<b>7-Day Trend</b>  %{y:.1f} mL/min/kg<extra></extra>",
         })
 
     layout = _layout(theme, shapes=shapes, annotations=annotations)
     layout["yaxis"]["title"] = {"text": "mL/min/kg", "font": {"size": 10}}
+    layout["yaxis"]["rangemode"] = "normal"
     return {"traces": traces, "layout": layout}
 
 
@@ -183,7 +220,7 @@ def get_rhr_hrv_weekly(conn, start: date, end: date, theme: str = "dark") -> dic
             "line": {"color": t["hrv"], "width": 2, "dash": "dot"},
             "opacity": 0.9,
             "yaxis": "y2",
-            "hovertemplate": "<b>HRV SDNN</b><br>📅 %{x|%b %d, %Y}<br>💜 <b>%{y:.1f} ms</b><extra></extra>",
+            "hovertemplate": "<b>HRV SDNN</b>  %{y:.1f} ms<extra></extra>",
         })
 
     if not df_rhr.empty:
@@ -196,11 +233,12 @@ def get_rhr_hrv_weekly(conn, start: date, end: date, theme: str = "dark") -> dic
             "name": "Resting HR (bpm)",
             "line": {"color": t["accent2"], "width": 2.5, "shape": "spline"},
             "yaxis": "y",
-            "hovertemplate": "<b>Resting HR</b><br>📅 %{x|%b %d, %Y}<br>❤️ <b>%{y:.1f} bpm</b><extra></extra>",
+            "hovertemplate": "<b>Resting HR</b>  %{y:.1f} bpm<extra></extra>",
         })
 
     layout = _layout(theme, margin={"l": 44, "r": 44, "t": 24, "b": 36})
     layout["yaxis"]["title"] = {"text": "bpm", "font": {"size": 10}}
+    layout["yaxis"]["rangemode"] = "normal"
     layout["yaxis2"] = {
         "title": {"text": "HRV ms", "font": {"size": 10}},
         "overlaying": "y",
@@ -209,6 +247,7 @@ def get_rhr_hrv_weekly(conn, start: date, end: date, theme: str = "dark") -> dic
         "zerolinecolor": "rgba(0,0,0,0)",
         "linecolor": "rgba(0,0,0,0)",
         "tickfont": {"size": 10, "color": t["tick"]},
+        "rangemode": "normal",
     }
     return {"traces": traces, "layout": layout}
 
@@ -248,26 +287,27 @@ def get_sleep_stages_weekly(conn, start: date, end: date, theme: str = "dark") -
             "x": x_weeks,
             "y": [round(v, 2) for v in weekly[col]],
             "name": name,
-            "marker": {"color": color},
-            "hovertemplate": f"<b>{name}</b><br>📅 %{{x|%b %d, %Y}}<br>⏱️ <b>%{{y:.2f}} hrs</b><extra></extra>",
-            "marker": {"opacity": 0.9, "line": {"color": "rgba(0,0,0,0.15)", "width": 0.5}},
+            "marker": {"color": color, "opacity": 0.88, "line": {"color": "rgba(0,0,0,0)", "width": 0}},
+            "hovertemplate": f"<b>{name}</b>  %{{y:.1f}} hrs<extra></extra>",
         })
 
     layout = _layout(theme, barmode="stack", showlegend=True)
     layout["legend"] = {
         "orientation": "h",
-        "y": 1.15,
-        "x": 1,
-        "xanchor": "right",
+        "y": 1.18,
+        "x": 0.5,
+        "xanchor": "center",
         "font": {"size": 10, "color": t["tick"]},
     }
     layout["yaxis"]["title"] = {"text": "Hrs / night", "font": {"size": 10}}
+    layout["bargap"] = 0.25
     return {"traces": traces, "layout": layout}
 
 
 # ── 4. Sleep Duration Trend ─────────────────────────────────────────────────
 def get_sleep_duration_trend(conn, start: date, end: date, theme: str = "dark") -> dict | None:
     t = THEME_COLORS.get(theme, THEME_COLORS["dark"])
+    is_light = theme == "light"
     sessions = get_sleep_sessions(conn, start, end)
     if not sessions:
         return None
@@ -276,6 +316,8 @@ def get_sleep_duration_trend(conn, start: date, end: date, theme: str = "dark") 
     df["hrs"] = df["total_sleep_sec"].fillna(0) / 3600
     df["rolling"] = df["hrs"].rolling(7, min_periods=1).mean()
 
+    accent_fill = "rgba(2,132,199,0.08)" if is_light else "rgba(56,189,248,0.07)"
+
     traces = [
         {
             "type": "scatter",
@@ -283,19 +325,19 @@ def get_sleep_duration_trend(conn, start: date, end: date, theme: str = "dark") 
             "y": [round(v, 2) for v in df["hrs"]],
             "mode": "markers",
             "name": "Nightly",
-            "marker": {"size": 6, "opacity": 0.6, "color": t["accent"], "symbol": "circle"},
-            "hovertemplate": "<b>Nightly Sleep</b><br>📅 %{x|%b %d, %Y}<br>🌙 <b>%{y:.2f} hrs</b><extra></extra>",
+            "marker": {"size": 5, "opacity": 0.55, "color": t["accent"], "symbol": "circle"},
+            "hovertemplate": "<b>Nightly Sleep</b>  %{y:.1f} hrs<extra></extra>",
         },
         {
             "type": "scatter",
             "x": df["calendar_date"].tolist(),
             "y": [round(v, 2) for v in df["rolling"]],
             "mode": "lines",
-            "name": "7-day avg",
-            "line": {"color": t["accent"], "width": 3, "shape": "spline", "smoothing": 1.3},
+            "name": "7-Day Avg",
+            "line": {"color": t["accent"], "width": 2.5, "shape": "spline", "smoothing": 1.3},
             "fill": "tozeroy",
-            "fillcolor": "rgba(56,189,248,0.07)",
-            "hovertemplate": "<b>7-Day Avg Sleep</b><br>📅 %{x|%b %d, %Y}<br>🌙 <b>%{y:.2f} hrs</b><extra></extra>",
+            "fillcolor": accent_fill,
+            "hovertemplate": "<b>7-Day Avg</b>  %{y:.1f} hrs<extra></extra>",
         },
         {
             "type": "scatter",
@@ -349,7 +391,7 @@ def get_sleep_consistency(conn, start: date, end: date, theme: str = "dark") -> 
     wake_labels = [_hour_str(h, short=True) for h in wake_ticks]
 
     dates = df["date"].tolist()
-    wake_color = "#38BDF8"
+    wake_color = t["accent"]
 
     traces = [
         {
@@ -357,10 +399,10 @@ def get_sleep_consistency(conn, start: date, end: date, theme: str = "dark") -> 
             "x": dates,
             "y": _safe(df["bed_adj"]),
             "mode": "markers",
-            "marker": {"size": 4, "opacity": 0.45, "color": t["accent2"]},
+            "marker": {"size": 4, "opacity": 0.5, "color": t["accent2"]},
             "name": "Bedtime",
             "text": df["bed_label"].tolist(),
-            "hovertemplate": "%{x}<br>Bedtime: %{text}<extra></extra>",
+            "hovertemplate": "<b>Bedtime</b>  %{text}<extra></extra>",
             "xaxis": "x",
             "yaxis": "y",
         },
@@ -380,10 +422,10 @@ def get_sleep_consistency(conn, start: date, end: date, theme: str = "dark") -> 
             "x": dates,
             "y": _safe(df["wake"]),
             "mode": "markers",
-            "marker": {"size": 4, "opacity": 0.45, "color": wake_color},
+            "marker": {"size": 4, "opacity": 0.5, "color": wake_color},
             "name": "Wake Time",
             "text": df["wake_label"].tolist(),
-            "hovertemplate": "%{x}<br>Wake: %{text}<extra></extra>",
+            "hovertemplate": "<b>Wake Time</b>  %{text}<extra></extra>",
             "xaxis": "x2",
             "yaxis": "y2",
         },
@@ -403,7 +445,7 @@ def get_sleep_consistency(conn, start: date, end: date, theme: str = "dark") -> 
     layout = _layout(
         theme,
         grid={"rows": 1, "columns": 2, "pattern": "independent"},
-        margin={"l": 44, "r": 44, "t": 28, "b": 36},
+        margin={"l": 44, "r": 44, "t": 32, "b": 36},
         xaxis={"domain": [0, 0.46], "gridcolor": t["grid"], "tickfont": {"size": 9, "color": t["tick"]}},
         yaxis={
             "tickvals": bed_ticks,
@@ -425,8 +467,8 @@ def get_sleep_consistency(conn, start: date, end: date, theme: str = "dark") -> 
             "tickfont": {"size": 9, "color": t["tick"]},
         },
         annotations=[
-            {"text": "Bedtime (PM/AM)", "x": 0.22, "xref": "paper", "y": 1.1, "yref": "paper", "showarrow": False, "font": {"size": 11, "color": t["tick"]}},
-            {"text": "Wake Time (AM)", "x": 0.78, "xref": "paper", "y": 1.1, "yref": "paper", "showarrow": False, "font": {"size": 11, "color": t["tick"]}},
+            {"text": "<b>Bedtime</b>", "x": 0.22, "xref": "paper", "y": 1.08, "yref": "paper", "showarrow": False, "font": {"size": 11, "color": t["accent2"]}},
+            {"text": "<b>Wake Time</b>", "x": 0.78, "xref": "paper", "y": 1.08, "yref": "paper", "showarrow": False, "font": {"size": 11, "color": t["accent"]}},
         ],
     )
     return {"traces": traces, "layout": layout}
@@ -435,12 +477,16 @@ def get_sleep_consistency(conn, start: date, end: date, theme: str = "dark") -> 
 # ── 6. Sleeping Wrist Temperature ───────────────────────────────────────────
 def get_wrist_temp(conn, start: date, end: date, theme: str = "dark") -> dict | None:
     t = THEME_COLORS.get(theme, THEME_COLORS["dark"])
+    is_light = theme == "light"
     records = get_metrics(conn, "wrist_temp", start, end)
     if not records:
         return None
 
     df = pd.DataFrame(records).sort_values("date")
+    df = _interpolate_gaps(df)
     df["rolling"] = df["value"].rolling(7, min_periods=1).mean()
+
+    fill_color = "rgba(225,29,72,0.06)" if is_light else "rgba(244,63,94,0.06)"
 
     traces = [
         {
@@ -449,24 +495,25 @@ def get_wrist_temp(conn, start: date, end: date, theme: str = "dark") -> dict | 
             "y": [round(v, 2) for v in df["value"]],
             "mode": "markers",
             "name": "Nightly Temp",
-            "marker": {"color": t["accent2"], "size": 6, "opacity": 0.65, "symbol": "circle"},
-            "hovertemplate": "<b>Wrist Temp</b><br>📅 %{x|%b %d, %Y}<br>🌡️ <b>%{y:.2f} °C</b><extra></extra>",
+            "marker": {"color": t["accent2"], "size": 5, "opacity": 0.6, "symbol": "circle"},
+            "hovertemplate": "<b>Wrist Temp</b>  %{y:.2f} °C<extra></extra>",
         },
         {
             "type": "scatter",
             "x": df["date"].tolist(),
             "y": [round(v, 2) for v in df["rolling"]],
             "mode": "lines",
-            "name": "7-day avg",
+            "name": "7-Day Avg",
             "line": {"color": t["accent2"], "width": 2.5, "shape": "spline"},
-            "hovertemplate": "<b>7-Day Avg Temp</b><br>📅 %{x|%b %d, %Y}<br>🌡️ <b>%{y:.2f} °C</b><extra></extra>",
+            "hovertemplate": "<b>7-Day Avg</b>  %{y:.2f} °C<extra></extra>",
             "fill": "tozeroy",
-            "fillcolor": "rgba(244,63,94,0.06)",
+            "fillcolor": fill_color,
         },
     ]
 
     layout = _layout(theme)
     layout["yaxis"]["title"] = {"text": "°C", "font": {"size": 10}}
+    layout["yaxis"]["rangemode"] = "normal"
     return {"traces": traces, "layout": layout}
 
 
