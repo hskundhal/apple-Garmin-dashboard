@@ -21,7 +21,7 @@ const queryClient = new QueryClient({
 function DashboardContent() {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<'health' | 'activity'>('health');
-  const [theme, setTheme] = useState<ThemeName>('dark');
+  const [theme, setTheme] = useState<ThemeName>('light');
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 

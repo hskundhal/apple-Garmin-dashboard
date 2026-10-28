@@ -108,30 +108,18 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
     const apple = heartData.resting_hr.filter((r) => r.source === 'apple_health');
     const traces: any[] = [];
 
-    // Reference band: healthy RHR zone 50-70 bpm
-    traces.push({
-      x: [] as string[],
-      y: [] as number[],
-      type: 'scatter',
-      mode: 'none',
-      fill: 'tozeroy',
-      fillcolor: 'rgba(16,185,129,0)',
-      showlegend: false,
-      hoverinfo: 'skip',
-    });
-
     if (garmin.length > 0) {
       const filled = fillDataGaps(garmin);
       traces.push({
         x: filled.map((r) => r.date),
         y: filled.map((r) => r.value),
-        name: '🔵 Garmin RHR',
+        name: 'Garmin RHR',
         type: 'scatter',
         mode: 'lines+markers',
         connectgaps: true,
-        line: { color: t.garminColor, width: 2.5, shape: 'spline', smoothing: 0.8 },
-        marker: { size: 5, color: t.garminColor, opacity: 0.85, symbol: 'circle' },
-        hovertemplate: '<b>Garmin RHR</b><br>%{x|%b %d, %Y}<br><b>%{y:.0f} bpm</b><extra></extra>',
+        line: { color: t.garminColor, width: 2, shape: 'spline', smoothing: 0.8 },
+        marker: { size: 4, color: t.garminColor, opacity: 0.9, symbol: 'circle' },
+        hovertemplate: '<b>Garmin RHR</b>  %{y:.0f} bpm<extra></extra>',
       });
     }
 
@@ -140,13 +128,13 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
       traces.push({
         x: filled.map((r) => r.date),
         y: filled.map((r) => r.value),
-        name: '🍎 Apple RHR',
+        name: 'Apple RHR',
         type: 'scatter',
         mode: 'lines+markers',
         connectgaps: true,
-        line: { color: t.appleColor, width: 2.2, dash: 'dot', shape: 'spline', smoothing: 0.8 },
-        marker: { size: 5, color: t.appleColor, opacity: 0.85, symbol: 'circle' },
-        hovertemplate: '<b>Apple RHR</b><br>%{x|%b %d, %Y}<br><b>%{y:.0f} bpm</b><extra></extra>',
+        line: { color: t.appleColor, width: 2, dash: 'dot', shape: 'spline', smoothing: 0.8 },
+        marker: { size: 4, color: t.appleColor, opacity: 0.9, symbol: 'circle' },
+        hovertemplate: '<b>Apple RHR</b>  %{y:.0f} bpm<extra></extra>',
       });
     }
 
@@ -156,14 +144,12 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
       traces.push({
         x: rolling.map((r) => r.date),
         y: rolling.map((r) => r.value),
-        name: '📈 7-Day Trend',
+        name: '7-Day Avg',
         type: 'scatter',
         mode: 'lines',
         connectgaps: true,
-        line: { color: '#F59E0B', width: 3, shape: 'spline', smoothing: 1.2 },
-        fill: 'tozeroy',
-        fillcolor: 'rgba(245,158,11,0.06)',
-        hovertemplate: '<b>7-Day Trend</b><br>%{x|%b %d, %Y}<br><b>%{y:.1f} bpm</b><extra></extra>',
+        line: { color: '#F59E0B', width: 2.5, shape: 'spline', smoothing: 1.3 },
+        hovertemplate: '<b>7-Day Avg</b>  %{y:.1f} bpm<extra></extra>',
       });
     }
 
@@ -180,12 +166,12 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
       {
         x: sorted.map((r) => r.date),
         y: sorted.map((r) => r.value),
-        name: '❤️ Daily Avg HR',
+        name: 'Daily Avg HR',
         type: 'scatter',
         mode: 'markers',
         connectgaps: true,
-        marker: { size: 6, color: t.heartColor, opacity: 0.65, symbol: 'circle' },
-        hovertemplate: '<b>Daily Avg HR</b><br>%{x|%b %d, %Y}<br><b>%{y:.0f} bpm</b><extra></extra>',
+        marker: { size: 5, color: t.heartColor, opacity: 0.55, symbol: 'circle' },
+        hovertemplate: '<b>Daily Avg HR</b>  %{y:.0f} bpm<extra></extra>',
       },
     ];
 
@@ -194,14 +180,14 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
       traces.push({
         x: rolling.map((r) => r.date),
         y: rolling.map((r) => r.value),
-        name: '📉 7-Day Baseline',
+        name: '7-Day Baseline',
         type: 'scatter',
         mode: 'lines',
         connectgaps: true,
-        line: { color: '#EC4899', width: 3, shape: 'spline', smoothing: 1.2 },
-        fill: 'tozeroy',
-        fillcolor: 'rgba(236,72,153,0.05)',
-        hovertemplate: '<b>7-Day Trend</b><br>%{x|%b %d, %Y}<br><b>%{y:.1f} bpm</b><extra></extra>',
+        line: { color: '#EC4899', width: 2.5, shape: 'spline', smoothing: 1.2 },
+        fill: 'tonexty',
+        fillcolor: 'rgba(236,72,153,0.06)',
+        hovertemplate: '<b>7-Day Avg</b>  %{y:.1f} bpm<extra></extra>',
       });
     }
     return traces;
@@ -215,16 +201,16 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
     const garmin = fillDataGaps(sorted.filter((r) => r.source === 'garmin'));
     const traces: any[] = [];
 
-    // HRV reference band 25–65 ms (healthy range)
+    // HRV healthy reference band 25–65 ms
     const allDates = sorted.map((r) => r.date);
     if (allDates.length > 0) {
       traces.push({
         x: [...allDates, ...allDates.slice().reverse()],
         y: [...allDates.map(() => 65), ...allDates.map(() => 25)],
         fill: 'toself',
-        fillcolor: 'rgba(16,185,129,0.07)',
+        fillcolor: 'rgba(16,185,129,0.08)',
         line: { color: 'transparent' },
-        name: 'Healthy HRV Range',
+        name: 'Healthy Range',
         showlegend: true,
         hoverinfo: 'skip',
         type: 'scatter',
@@ -236,13 +222,13 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
       traces.push({
         x: apple.map((r) => r.date),
         y: apple.map((r) => r.value),
-        name: '🍎 Apple HRV',
+        name: 'Apple HRV',
         type: 'scatter',
         mode: 'lines+markers',
         connectgaps: true,
-        line: { color: t.hrvColor, width: 2.5, shape: 'spline', smoothing: 0.9 },
-        marker: { size: 5, color: t.hrvColor, opacity: 0.9, symbol: 'circle' },
-        hovertemplate: '<b>Apple HRV (SDNN)</b><br>%{x|%b %d, %Y}<br><b>%{y:.1f} ms</b><extra></extra>',
+        line: { color: t.hrvColor, width: 2, shape: 'spline', smoothing: 0.9 },
+        marker: { size: 4, color: t.hrvColor, opacity: 0.9, symbol: 'circle' },
+        hovertemplate: '<b>Apple HRV</b>  %{y:.1f} ms<extra></extra>',
       });
     }
 
@@ -250,13 +236,13 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
       traces.push({
         x: garmin.map((r) => r.date),
         y: garmin.map((r) => r.value),
-        name: '🔵 Garmin HRV',
+        name: 'Garmin HRV',
         type: 'scatter',
         mode: 'lines+markers',
         connectgaps: true,
-        line: { color: '#06B6D4', width: 2.2, dash: 'dot', shape: 'spline', smoothing: 0.9 },
-        marker: { size: 5, color: '#06B6D4', opacity: 0.9, symbol: 'diamond' },
-        hovertemplate: '<b>Garmin HRV</b><br>%{x|%b %d, %Y}<br><b>%{y:.1f} ms</b><extra></extra>',
+        line: { color: '#06B6D4', width: 2, dash: 'dot', shape: 'spline', smoothing: 0.9 },
+        marker: { size: 4, color: '#06B6D4', opacity: 0.9, symbol: 'diamond' },
+        hovertemplate: '<b>Garmin HRV</b>  %{y:.1f} ms<extra></extra>',
       });
     }
 
@@ -266,12 +252,12 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
       traces.push({
         x: rolling.map((r) => r.date),
         y: rolling.map((r) => r.value),
-        name: '📈 7-Day Trend',
+        name: '7-Day Trend',
         type: 'scatter',
         mode: 'lines',
         connectgaps: true,
         line: { color: '#F59E0B', width: 2.5, shape: 'spline', smoothing: 1.3 },
-        hovertemplate: '<b>7-Day Trend</b><br>%{x|%b %d, %Y}<br><b>%{y:.1f} ms</b><extra></extra>',
+        hovertemplate: '<b>7-Day Avg</b>  %{y:.1f} ms<extra></extra>',
       });
     }
 
@@ -286,16 +272,14 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
       traces.push({
         x: filled.map((r) => r.date),
         y: filled.map((r) => r.value),
-        name: '🚶 Walking HR',
+        name: 'Walking HR',
         type: 'scatter',
         mode: 'lines+markers',
         connectgaps: true,
-        line: { color: '#10B981', width: 2.5, shape: 'spline', smoothing: 0.9 },
-        marker: { size: 5, color: '#10B981', opacity: 0.85 },
-        hovertemplate: '<b>Walking HR</b><br>%{x|%b %d, %Y}<br><b>%{y:.0f} bpm</b><extra></extra>',
+        line: { color: '#10B981', width: 2, shape: 'spline', smoothing: 0.9 },
+        marker: { size: 4, color: '#10B981', opacity: 0.85 },
+        hovertemplate: '<b>Walking HR</b>  %{y:.0f} bpm<extra></extra>',
         yaxis: 'y',
-        fill: 'tozeroy',
-        fillcolor: 'rgba(16,185,129,0.05)',
       });
     }
 
@@ -304,13 +288,13 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
       traces.push({
         x: filled.map((r) => r.date),
         y: filled.map((r) => r.value),
-        name: '⚡ 1-Min Recovery Drop',
+        name: '1-Min Recovery',
         type: 'scatter',
         mode: 'lines+markers',
         connectgaps: true,
-        line: { color: '#F59E0B', width: 2.5, dash: 'dot', shape: 'spline', smoothing: 0.9 },
-        marker: { size: 5, color: '#F59E0B', opacity: 0.85, symbol: 'triangle-up' },
-        hovertemplate: '<b>Recovery Drop</b><br>%{x|%b %d, %Y}<br><b>%{y:.0f} bpm drop</b><extra></extra>',
+        line: { color: '#F59E0B', width: 2, dash: 'dot', shape: 'spline', smoothing: 0.9 },
+        marker: { size: 4, color: '#F59E0B', opacity: 0.85, symbol: 'triangle-up' },
+        hovertemplate: '<b>Recovery Drop</b>  %{y:.0f} bpm<extra></extra>',
         yaxis: 'y2',
       });
     }
@@ -403,10 +387,10 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
               <PlotlyChart
                 data={buildRhrTraces()}
                 layout={{
-                  yaxis: { title: { text: 'bpm', font: { size: 10 } } },
+                  yaxis: { title: { text: 'bpm', font: { size: 10 } }, rangemode: 'normal' },
                 }}
                 theme={theme}
-                height={280}
+                height={248}
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
@@ -432,10 +416,10 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
               <PlotlyChart
                 data={buildNormalHrTraces()}
                 layout={{
-                  yaxis: { title: { text: 'bpm', font: { size: 10 } } },
+                  yaxis: { title: { text: 'bpm', font: { size: 10 } }, rangemode: 'normal' },
                 }}
                 theme={theme}
-                height={280}
+                height={248}
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
@@ -461,10 +445,10 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
               <PlotlyChart
                 data={buildHrvTraces()}
                 layout={{
-                  yaxis: { title: { text: 'HRV SDNN (ms)', font: { size: 10 } } },
+                  yaxis: { title: { text: 'HRV SDNN (ms)', font: { size: 10 } }, rangemode: 'normal' },
                 }}
                 theme={theme}
-                height={280}
+                height={248}
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
@@ -490,16 +474,17 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
               <PlotlyChart
                 data={buildWalkingAndRecoveryTraces()}
                 layout={{
-                  yaxis: { title: { text: 'Walking HR (bpm)', font: { size: 10 } } },
+                  yaxis: { title: { text: 'Walking HR (bpm)', font: { size: 10 } }, rangemode: 'normal' },
                   yaxis2: {
-                    title: { text: 'Recovery Drop (bpm)', font: { size: 10 } },
+                    title: { text: 'Recovery (bpm)', font: { size: 10 } },
                     overlaying: 'y',
                     side: 'right',
                     showgrid: false,
+                    rangemode: 'normal',
                   },
                 }}
                 theme={theme}
-                height={280}
+                height={248}
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
@@ -555,7 +540,7 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
                 data={vo2Data.traces}
                 layout={vo2Data.layout}
                 theme={theme}
-                height={290}
+                height={256}
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
@@ -582,7 +567,7 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
                 data={sleepStagesData.traces}
                 layout={sleepStagesData.layout}
                 theme={theme}
-                height={290}
+                height={256}
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
@@ -609,7 +594,7 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
                 data={sleepDurationData.traces}
                 layout={sleepDurationData.layout}
                 theme={theme}
-                height={290}
+                height={256}
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
@@ -636,7 +621,7 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
                 data={sleepConsistencyData.traces}
                 layout={sleepConsistencyData.layout}
                 theme={theme}
-                height={290}
+                height={256}
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
@@ -663,7 +648,7 @@ export const HealthTab: React.FC<HealthTabProps> = ({ startDate, endDate, theme 
                 data={wristTempData.traces}
                 layout={wristTempData.layout}
                 theme={theme}
-                height={280}
+                height={240}
               />
             ) : (
               <div style={{ textAlign: 'center', padding: '50px 0', color: 'var(--text-muted)' }}>
