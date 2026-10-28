@@ -8,21 +8,22 @@ Built with **FastAPI**, **SQLite**, **React**, **TypeScript**, and **Plotly.js**
 
 ## 📸 Screenshots & Demo Preview
 
-### Health & Sleep Timelines (Dark Mode)
-*Unified biometrics overlaying Apple Health and Garmin data with VO2 Max fitness trends, Resting HR, HRV, sleep stages architecture, consistency, and wrist temperature.*
-![Health & Sleep Timelines (Dark)](docs/screenshots/health-metrics-dark.png)
+### Health & Sleep Timelines (Default Light Theme)
+*Clean, modern oceanic light mode featuring unified biometrics overlaying Apple Health and Garmin data, VO2 Max fitness classifications, Resting HR, Daytime HR, HRV, sleep stages architecture, consistency, and sleeping wrist temperature with unified hover values and smoothed gap-interpolated curves.*
+![Health & Sleep Timelines (Light)](docs/screenshots/health-timelines-light.png)
 
 ### Activities & Multisport Performance
-*Activity inspection feed, volume distribution donut by sport, monthly training time breakdown, and comprehensive metrics.*
-![Activities & Multisport Performance](docs/screenshots/activities-overview-dark.png)
+*Session inspection feed, volume distribution donut by sport, monthly training time breakdown, and comprehensive stats (pace, cadence, power, elevation).*
+![Activities & Multisport Performance](docs/screenshots/activities-overview-light.png)
 
-### Per-Activity Heart Rate Profile & Zones
+### Per-Activity Heart Rate Profile & Cardiovascular Zones
 *Session-specific heart rate curve with cardiovascular intensity zones (Recovery, Aerobic, Threshold, VO2Max) and load indicators.*
-![Activity Heart Rate Profile](docs/screenshots/activity-heart-rate-dark.png)
+![Activity Heart Rate Profile](docs/screenshots/activity-heart-rate-light.png)
 
-### Light Theme
-*Clean, high-contrast light mode with custom oceanic & slate color palette.*
-![Health Timelines Light Mode](docs/screenshots/health-timelines-light.png)
+### Dark Theme Mode
+*Seamless dark theme with neon cyan & rose accents for nocturnal viewing.*
+![Health & Sleep Timelines (Dark)](docs/screenshots/health-metrics-dark.png)
+![Activities & Performance (Dark)](docs/screenshots/activities-overview-dark.png)
 
 ---
 
